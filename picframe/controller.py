@@ -12,6 +12,7 @@ def make_date(txt):
     dt_tuple = tuple(int(i) for i in dt) #TODO catch badly formed dates?
     return time.mktime(dt_tuple + (0, 0, 0, 0, 0, 0))
 
+
 class Controller:
     """Controller of picframe.
 
@@ -48,11 +49,16 @@ class Controller:
         self.__location_filter = ""
         self.__where_clauses = {}
         self.__sort_clause = "exif_datetime ASC"
-        self.publish_state = lambda x, y: None
+        self.publish_state = self.noop_publish_state
         self.__keep_looping = True
         self.__location_filter = ''
         self.__tags_filter = ''
         self.__shutdown_complete = False
+
+    @staticmethod
+    def noop_publish_state(x, y):
+        pass
+
 
     @property
     def paused(self):
