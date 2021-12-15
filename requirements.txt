@@ -1,0 +1,7 @@
+exifread
+ninepatch
+numpy
+paho-mqtt
+pi3d
+pyyaml
+urllib3
