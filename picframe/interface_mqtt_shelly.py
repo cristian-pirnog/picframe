@@ -24,6 +24,8 @@ class InterfaceMQTT:
     -------
 
     """
+    topic = "shellies/"
+
 
     def __init__(self, controller, mqtt_config):
         self.__logger = logging.getLogger("interface_mqtt.InterfaceMQTT")
@@ -43,7 +45,7 @@ class InterfaceMQTT:
             self.__client.connect(server, port, 60)
             self.__client.on_connect = self.on_connect
             self.__client.on_message = self.on_message
-            self.__device_id = mqtt_config['device_id']
+            # self.__device_id = mqtt_config['device_id']
         except Exception as e:
             self.__logger.info("MQTT not set up because of: {}".format(e))
 
@@ -68,23 +70,22 @@ class InterfaceMQTT:
             return
         self.__logger.info('Connected with mqtt broker')
 
+        client.subscribe(f'{self.topic}#', qos=0)
+
         # TODO: Fetch the last message sent by the sensor (ON or OFF) and react to it
 
 
+
     def on_message(self, client, userdata, message):
-        msg = message.payload.decode("utf-8")
-        switch_topic_head = "shellies/" + self.__device_id
+        msg = json.loads(message.payload.decode("utf-8"))
 
         ###### switches ######
         # display
-        if message.topic == switch_topic_head + "_display/set":
-            state_topic = switch_topic_head + "_display/state"
-            if msg == "ON":
+        if message.topic == self.topic:
+            if msg["motion"]:
                 self.__controller.display_is_on = True
-                client.publish(state_topic, "ON", retain=True)
-            elif msg == "OFF":
+            else:
                 self.__controller.display_is_on = False
-                client.publish(state_topic, "OFF", retain=True)
 
 
     def publish_state(self, image, image_attr):

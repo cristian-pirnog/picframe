@@ -1,3 +1,5 @@
+from pathlib import Path
+import argparse
 import sqlite3
 import os
 import time
@@ -507,7 +509,12 @@ class ImageCache:
 
 # If being executed (instead of imported), kick it off...
 if __name__ == "__main__":
-    cache = ImageCache(picture_dir='/home/pi/Pictures', follow_links=False, db_file='/home/pi/db.db3', geo_reverse=None)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("pic_dir", nargs='?', help="/path/to/picture/dir")
+    parser.add_argument("db_dir", nargs='?', help="/path/to/database/dir")
+    args = parser.parse_args()
+
+    cache = ImageCache(picture_dir=args.pic_dir, follow_links=False, db_file=Path(args.db_dir) / 'db.db3', geo_reverse=None)
     #cache.update_cache()
     # items = cache.query_cache("make like '%google%'", "exif_datetime asc")
     #info = cache.get_file_info(12)
