@@ -1,7 +1,9 @@
+from pathlib import Path
 import yaml
 import os
 import time
 import logging
+import logging.config
 import random
 import json
 import locale
@@ -142,17 +144,22 @@ class Model:
                 self.__logger.debug('config data = %s', self.__config)
             except yaml.YAMLError as exc:
                 self.__logger.error("Can't parse yaml config file: %s: %s", configfile, exc)
-        root_logger = logging.getLogger()
-        root_logger.setLevel(self.get_model_config()['log_level']) # set root logger
-        log_file = self.get_model_config()['log_file']
-        if log_file != '':
-            filehandler = logging.FileHandler(log_file) #NB default appending so needs monitoring
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            filehandler.setFormatter(formatter)
-            for hdlr in root_logger.handlers[:]:  # remove the existing file handlers
-                if isinstance(hdlr, logging.FileHandler):
-                    root_logger.removeHandler(hdlr)
-            root_logger.addHandler(filehandler)      # set the new handler
+
+        log_config_file = Path(configfile).parent / 'log_config.json'
+        with log_config_file.open('r') as fr:
+            logging.config.dictConfig(json.load(fr))
+        print('Completed logger initialization')
+        # root_logger = logging.getLogger()
+        # root_logger.setLevel(self.get_model_config()['log_level']) # set root logger
+        # log_file = self.get_model_config()['log_file']
+        # if log_file != '':
+        #     filehandler = logging.FileHandler(log_file) #NB default appending so needs monitoring
+        #     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        #     filehandler.setFormatter(formatter)
+        #     for hdlr in root_logger.handlers[:]:  # remove the existing file handlers
+        #         if isinstance(hdlr, logging.FileHandler):
+        #             root_logger.removeHandler(hdlr)
+        #     root_logger.addHandler(filehandler)      # set the new handler
 
         self.__file_list = [] # this is now a list of tuples i.e (file_id1,) or (file_id1, file_id2)
         self.__number_of_files = 0 # this is shortcut for len(__file_list)

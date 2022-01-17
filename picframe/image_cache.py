@@ -24,7 +24,8 @@ class ImageCache:
                      'IPTC Object Name': 'title'}
 
 
-    def __init__(self, picture_dir, follow_links, db_file, geo_reverse, portrait_pairs=False):
+    def __init__(self, picture_dir, follow_links, db_file, geo_reverse, portrait_pairs=False, 
+        continuous_update: bool = True):
         # TODO these class methods will crash if Model attempts to instantiate this using a
         # different version from the latest one - should this argument be taken out?
         self.__modified_folders = []
@@ -42,9 +43,9 @@ class ImageCache:
         # NB this is where the required schema is set
         self.__update_schema(3)
 
-        self.__keep_looping = True
+        self.__keep_looping = continuous_update
         self.__pause_looping = False
-        self.__shutdown_completed = False
+        self.__shutdown_completed = True
         self.__purge_files = False
 
         t = threading.Thread(target=self.__loop)
@@ -52,6 +53,7 @@ class ImageCache:
 
 
     def __loop(self):
+        self.__shutdown_completed = False
         while self.__keep_looping:
             if not self.__pause_looping:
                 self.update_cache()

@@ -24,11 +24,11 @@ class InterfaceMQTT:
     -------
 
     """
-    topic = "shellies/"
+    topic_prefix = "shellies"
 
 
     def __init__(self, controller, mqtt_config):
-        self.__logger = logging.getLogger("interface_mqtt.InterfaceMQTT")
+        self.__logger = logging.getLogger(self.__class__.__name__)
         self.__logger.info('creating an instance of InterfaceMQTT')
         self.__controller = controller
         try:
@@ -42,9 +42,9 @@ class InterfaceMQTT:
                 self.__client.tls_set(tls)
             server = mqtt_config['server']
             port = mqtt_config['port']
-            self.__client.connect(server, port, 60)
             self.__client.on_connect = self.on_connect
             self.__client.on_message = self.on_message
+            self.__client.connect(server, port, 60)
             # self.__device_id = mqtt_config['device_id']
         except Exception as e:
             self.__logger.info("MQTT not set up because of: {}".format(e))
@@ -68,25 +68,63 @@ class InterfaceMQTT:
         if rc != 0:
             self.__logger.warning("Can't connect with mqtt broker. Reason = {0}".format(rc))
             return
-        self.__logger.info('Connected with mqtt broker')
+        self.__logger.info('Connected with MQTT broker')
 
-        client.subscribe(f'{self.topic}#', qos=0)
-
+        self.__logger.info(f'Subscribing to topic')
+        try:
+            result = client.subscribe(f'{self.topic_prefix}/#', qos=0)
+            self.__logger.info(f'Got result {result} from MQTT subscribe command')
+        except Exception as e:
+            self.__logger.error(f'Got exception: {e}')
         # TODO: Fetch the last message sent by the sensor (ON or OFF) and react to it
 
 
 
     def on_message(self, client, userdata, message):
-        msg = json.loads(message.payload.decode("utf-8"))
+        self.__logger.info('on_message called')
+        if not message.topic.startswith(self.topic_prefix):
+            self.__logger.info(f'Ignoring message "{message.payload}" from topic "{message.topic}"')
+            return
 
-        ###### switches ######
-        # display
-        if message.topic == self.topic:
-            if msg["motion"]:
-                self.__controller.display_is_on = True
+        self.__logger.info(f'Message topic: {message.topic}')
+        try:
+            self.__logger.info(f'Got MQTT message {message.payload}')
+            msg = json.loads(message.payload.decode("utf-8"))
+            self.__logger.info(f'Decoded MQTT payload {msg}')
+
+            # display
+            if r'button_pic_frame/input_event' in message.topic:
+                self.handle_button(msg)
+            elif 'shellymotionsensor' in message.topic:
+                self.handle_motion_sensor(msg)
             else:
-                self.__controller.display_is_on = False
+                self.__logger.info(f'Ignoring MQTT message from topic: {message.topic}')
+        except Exception as e:
+            self.__logger.error(f'Got error: {e}')
+            return
 
+
+    def handle_motion_sensor(self, msg):
+        self.__logger.info(f"Handling sensor message: {msg}")
+        self.__controller.display_is_on = bool(msg["motion"])
+
+
+    def handle_button(self, msg):
+        self.__logger.info(f"Handling button message: {msg}")
+        if msg['event'] == 'S':
+            self.__logger.info('Pausing playback')
+            self.__controller.paused = not self.__controller.paused
+            self.__logger.info(f'Paused status is: {self.__controller.paused}')
+        elif msg['event'] == 'SS': # Go to previous picture
+            self.__logger.info('Showing previous picture')
+            self.__controller.paused = False
+            self.__controller.back()
+        elif msg['event'] == 'SSS':
+            self.__logger.info('Showing the text')
+            self.__controller.set_show_text()
+        elif msg['event'] == 'L':
+            self.__logger.info('Turning the display on')
+            self.__controller.display_is_on = True
 
     def publish_state(self, image, image_attr):
         pass

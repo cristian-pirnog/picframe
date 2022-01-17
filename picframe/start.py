@@ -82,7 +82,7 @@ def check_packages (packages):
 
 def main():
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-    logger = logging.getLogger("start.py")
+    logger = logging.getLogger(__file__)
     logger.info('starting %s', sys.argv)
 
     parser = argparse.ArgumentParser()
