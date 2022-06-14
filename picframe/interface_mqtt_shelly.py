@@ -70,8 +70,8 @@ class InterfaceMQTT(InterfaceMQTTBase):
 
 
     def handle_motion_sensor(self, msg):
-        self.__logger.info(f"Handling sensor message: {msg}")
-        self.__controller.display_is_on = bool(msg["motion"])
+        # self.__logger.debug(f"Handling sensor message: {msg}")
+        self.__controller.display_is_on = bool(msg["sensor"]["motion"])
 
 
     def handle_button(self, msg):

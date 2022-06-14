@@ -283,6 +283,11 @@ class Controller:
 
         #next_check_tm = time.time() + self.__model.get_model_config()['check_dir_tm']
         while self.__keep_looping:
+            # If the display is not on, just sleep for a bit and then go back to start of loop
+            if not self.display_is_on:
+                time.sleep(1)
+                self.__next_tm = time.time() + self.__model.time_delay
+                continue
 
             #if self.__next_tm == 0: #TODO double check why these were set when next_tm == 0
             #    time_delay = 1 # must not be 0
