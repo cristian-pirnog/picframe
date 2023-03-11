@@ -7,6 +7,8 @@ import json
 import os
 from picframe import __version__
 from picframe.controller import Controller
+import re
+
 from interface_mqtt import InterfaceMQTT as InterfaceMQTTBase
 
 class InterfaceMQTT(InterfaceMQTTBase):
@@ -46,40 +48,40 @@ class InterfaceMQTT(InterfaceMQTTBase):
 
 
     def on_message(self, client, userdata, message):
-        self.__logger.info('on_message called')
+        self.__logger.debug('on_message called')
         if not message.topic.startswith(self.topic_prefix):
             super().on_message(client, userdata, message)
             return
 
-        self.__logger.info(f'Message topic: {message.topic}')
+        self.__logger.debug(f'Message topic: {message.topic}')
         try:
-            self.__logger.info(f'Got MQTT message {message.payload}')
+            self.__logger.debug(f'Got MQTT message {message.payload}')
             msg = json.loads(message.payload.decode("utf-8"))
-            self.__logger.info(f'Decoded MQTT payload {msg}')
+            self.__logger.debug(f'Decoded MQTT payload {msg}')
 
             # display
             if r'button_pic_frame/input_event' in message.topic:
                 self.handle_button(msg)
-            elif 'shellymotionsensor' in message.topic:
+            elif re.search('.*/shellymotionsensor-.*/status', message.topic) is not None:
                 self.handle_motion_sensor(msg)
             else:
-                self.__logger.info(f'Ignoring MQTT message from topic: {message.topic}')
+                self.__logger.debug(f'Ignoring MQTT message from topic: {message.topic}')
         except Exception as e:
-            self.__logger.error(f'Got error: {e}')
+            self.__logger.error(f'Got error: {e} - for message: {message.payload}')
             return
 
 
     def handle_motion_sensor(self, msg):
-        # self.__logger.debug(f"Handling sensor message: {msg}")
-        self.__controller.display_is_on = bool(msg["sensor"]["motion"])
+        self.__logger.debug(f"Handling sensor message: {msg}")
+        self.__controller.display_is_on = bool(msg["motion"])
 
 
     def handle_button(self, msg):
-        self.__logger.info(f"Handling button message: {msg}")
+        self.__logger.debug(f"Handling button message: {msg}")
         if msg['event'] == 'S':
             self.__logger.info('Pausing playback')
             self.__controller.paused = not self.__controller.paused
-            self.__logger.info(f'Paused status is: {self.__controller.paused}')
+            self.__logger.debug(f'Paused status is: {self.__controller.paused}')
         elif msg['event'] == 'SS': # Go to previous picture
             self.__logger.info('Showing previous picture')
             self.__controller.paused = False

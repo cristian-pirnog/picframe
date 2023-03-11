@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "default": {
+      "format": "%(asctime)s: %(levelname)s %(name)s - %(funcName)s: %(message)s"
+    }
+  },
+  "handlers": {
+    "console": {
+      "class": "logging.StreamHandler",
+      "formatter": "default",
+      "stream": "ext://sys.stdout"
+    },
+    "file": {
+      "class": "logging.handlers.RotatingFileHandler",
+      "formatter": "default",
+      "filename": "/home/pi/picframe.log",
+      "maxBytes": 10000000,
+      "backupCount": 2,
+      "level": "DEBUG"
+    }
+  },
+  "root": {
+    "handlers": ["file"],
+    "level": "INFO"
+  }
+}

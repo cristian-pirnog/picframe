@@ -212,6 +212,11 @@ class InterfaceMQTT:
         client.publish(state_topic, "ON" if is_on else "OFF", qos=0, retain=True)
 
     def on_message(self, client, userdata, message):
+        self.__logger.info(f"Handling message for topic: {message.topic} with payload: {message.payload}")
+        payload = message.payload
+        if not payload:
+            self.__logger.info(f"Ignoring message with empty payload for topic: {message.topic}")
+            return 
         msg = message.payload.decode("utf-8")
         switch_topic_head = "homeassistant/switch/" + self.__device_id
 
