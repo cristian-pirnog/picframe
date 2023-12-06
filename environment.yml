@@ -1,0 +1,14 @@
+name: picreader
+dependencies:
+  - python=3.10.8
+  - black
+  - flake8
+  - exifread
+  - numpy
+  - paho-mqtt
+  - pyyaml
+  - urllib3
+  - pip
+  - pip:
+    - ninepatch
+    - pi3d
