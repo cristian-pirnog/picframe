@@ -1,4 +1,23 @@
-# Picframe customization for my own Raspberry Pi
+# Picframe installation and customization for my own Raspberry Pi
+
+
+# OS installation
+## OS version
+The latest OS version supported by the picframe is Buster. An ISO image is stored on 
+the NAS, under `/volume1/backup/picframe`. 
+
+## Disabling low voltage warning
+1. Add the line below to the `/boot/config.txt` file:
+```
+avoid_warnings=1
+```
+1. Remove the battery monitor plugin:
+```
+sudo apt remove lxplug-ptbatt
+```
+1. Reboot
+
+
 
 
 ## Picframe data
