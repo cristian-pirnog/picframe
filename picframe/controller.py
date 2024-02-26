@@ -107,6 +107,18 @@ class Controller:
     def subdirectory(self):
         return self.__model.subdirectory
 
+    def reload_model(self):
+        self.__model.force_reload()
+
+    def show_same_month_photos(self, config: str):
+        try:
+            config = json.loads(config)
+        except:
+            config = {"activate": False}
+
+        self.__model.same_month_photos = config.get("activate", False)
+        self.reload_model()
+
     @subdirectory.setter
     def subdirectory(self, dir):
         self.__model.subdirectory = dir

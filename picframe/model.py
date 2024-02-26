@@ -1,3 +1,5 @@
+import abc
+from datetime import datetime
 from pathlib import Path
 import yaml
 import os
@@ -163,6 +165,7 @@ class Model:
 
         self.__file_list = [] # this is now a list of tuples i.e (file_id1,) or (file_id1, file_id2)
         self.__number_of_files = 0 # this is shortcut for len(__file_list)
+        self.same_month_photos = False
         self.__reload_files = True
         self.__file_index = 0 # pointer to next position in __file_list
         self.__current_pics = (None, None) # this hold a tuple of (pic, None) or two pic objects if portrait pairs
@@ -259,6 +262,9 @@ class Model:
             return
         self.__where_clauses[key] = value
 
+    def get_where_clauses(self):
+        return self.__where_clauses
+
     def pause_looping(self, val):
         self.__image_cache.pause_looping(val)
 
@@ -297,7 +303,7 @@ class Model:
 
             # Reload the playlist if requested
             if self.__reload_files:
-                for _i in range(5): # give image_cache chance on first load if a large directory
+                for _ in range(5): # give image_cache chance on first load if a large directory
                     self.__get_files()
                     missing_images = 0
                     if self.__number_of_files > 0:
@@ -332,8 +338,8 @@ class Model:
             # Verify the images in the selected image set actually exist on disk
             # Blank out missing references and swap positions if necessary to try and get
             # a valid image in the first slot.
-            if pic1 and not os.path.isfile(pic1.fname): pic1 = None
             if pic2 and not os.path.isfile(pic2.fname): pic2 = None
+            if pic1 and not os.path.isfile(pic1.fname): pic1 = None
             if (not pic1 and pic2): pic1, pic2 = pic2, pic1
 
             # Increment the image index for next time
@@ -380,51 +386,101 @@ class Model:
                 self.__number_of_files -= 1
                 break
 
-    def __get_files(self):
+    def get_picture_dir(self):
         if self.subdirectory != "":
             picture_dir = os.path.join(self.__pic_dir, self.subdirectory) # TODO catch, if subdirecotry does not exist
         else:
             picture_dir = self.__pic_dir
-        where_list = ["fname LIKE '{}/%'".format(picture_dir)] # TODO / on end to stop 'test' also selecting test1 test2 etc
-        where_list.extend(self.__where_clauses.values())
 
-        if len(where_list) > 0:
-            where_clause = " AND ".join(where_list) # TODO now always true - remove unreachable code
-        else:
-            where_clause = "1"
+        return picture_dir
 
-        sort_list = []
-        recent_n = self.get_model_config()["recent_n"]
-        if recent_n > 0:
-            sort_list.append("last_modified < {:.0f}".format(time.time() - 3600 * 24 * recent_n))
+    def __get_files(self):
+        file_selector = FileSelectorFactory.get(self)
+        self.__logger.info(f"Using file selector: {file_selector.__class__.__name__}")
 
-        if self.shuffle:
-            sort_list.append("RANDOM()")
-        else:
-            if self.__col_names is None:
-                self.__col_names = self.__image_cache.get_column_names() # do this once
-            for col in self.__sort_cols.split(","):
-                colsplit = col.split()
-                if colsplit[0] in self.__col_names and (len(colsplit) == 1 or colsplit[1].upper() in ("ASC", "DESC")):
-                    sort_list.append(col)
-            sort_list.append("fname ASC") # always finally sort on this in case nothing else to sort on or sort_cols is ""
-        sort_clause = ",".join(sort_list)
-
+        where_clause = file_selector.get_where_clause()
+        sort_clause = file_selector.get_sort_clause()
+        
         self.__file_list = self.__image_cache.query_cache(where_clause, sort_clause)
         self.__number_of_files = len(self.__file_list)
         self.__file_index = 0
         self.__num_run_through = 0
         self.__reload_files = False
 
-    """def __shuffle_files(self):
-        #self.__file_list.sort(key=lambda x: x[1]) # will be later files last
-        recent_n = self.get_model_config()['recent_n']
-        temp_list_first = self.__file_list[-recent_n:]
-        temp_list_last = self.__file_list[:-recent_n]
-        random.seed()
-        random.shuffle(temp_list_first)
-        random.shuffle(temp_list_last)
-        self.__file_list = temp_list_first + temp_list_last
 
-    def __sort_files(self):
-        self.__file_list.sort() # if not shuffled; sort by name"""
+class FileSelector(abc.ABC):
+    def __init__(self, model: Model) -> None:
+        self.model = model
+        super().__init__()
+
+    def get_where_clause(self) -> str:
+        where_list = [f"fname LIKE '{self.model.get_picture_dir()}/%'"]
+        where_list.extend(self._get_where_list())
+        return " AND ".join(where_list) if len(where_list) > 0 else "1"
+
+
+    def get_sort_clause(self) -> str:
+        sort_list = []
+        recent_n = self.model.get_model_config()["recent_n"]
+        if recent_n > 0:
+            sort_list.append("last_modified > {:.0f}".format(time.time() - 3600 * 24 * recent_n))
+
+        if self.model.shuffle:
+            sort_list.append("RANDOM()")
+        else:
+            sort_list.extend(self._get_sort_list())
+
+        return ",".join(sort_list)
+
+    @abc.abstractmethod
+    def _get_where_list(self) -> str:
+        pass
+
+
+    @abc.abstractmethod
+    def _get_sort_list(self) -> str:
+        pass
+
+
+class DefaultFileSelector(FileSelector):
+    def __init__(self, model: Model) -> None:
+        super().__init__(model)
+        self.model = model
+
+    def _get_where_list(self) -> str:
+        return self.model.get_where_clauses()
+
+
+    def _get_sort_list(self) -> str:
+        sort_list = []
+
+        if self.model.__col_names is None:
+            self.model.__col_names = self.model.__image_cache.get_column_names() # do this once
+        for col in self.model.__sort_cols.split(","):
+            colsplit = col.split()
+            if colsplit[0] in self.model.__col_names and (len(colsplit) == 1 or colsplit[1].upper() in ("ASC", "DESC")):
+                sort_list.append(col)
+        sort_list.append("fname ASC") # always finally sort on this in case nothing else to sort on or sort_cols is ""
+        
+        return sort_list
+
+
+class SameMonthFileSelector(FileSelector):
+    def __init__(self, model: Model) -> None:
+        super().__init__(model)
+        self.month = datetime.now().month
+
+    def _get_where_list(self) -> str:
+        return [f"STRFTIME('%m', DATETIME(exif_datetime, 'unixepoch')) = '{self.month:02}'"]
+
+    
+    def _get_sort_list(self) -> str:
+        return [""]
+
+class FileSelectorFactory:
+    def get(model: Model) -> FileSelector:
+        # On the first week of the month, use files from the same month
+        if model.same_month_photos or datetime.now().day < 8:
+            return SameMonthFileSelector(model)
+        
+        return DefaultFileSelector(model)

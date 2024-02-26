@@ -120,6 +120,7 @@ class ImageCache:
             if not self.__portrait_pairs: # TODO SQL insertion? Does it matter in this app?
                 sql = """SELECT file_id FROM all_data WHERE {0} ORDER BY {1}
                     """.format(where_clause, sort_clause)
+                self.__logger.info(f"Executing query: {sql}")
                 return cursor.execute(sql).fetchall()
             else: # make two SELECTS
                 sql = """SELECT
@@ -380,13 +381,16 @@ class ImageCache:
         for dir,_date in modified_folders:
             for file in os.listdir(dir):
                 base, extension = os.path.splitext(file)
-                if (extension.lower() in ImageCache.EXTENSIONS
-                        and not '.AppleDouble' in dir and not file.startswith('.')): # have to filter out all the Apple junk
-                    full_file = os.path.join(dir, file)
-                    mod_tm =  os.path.getmtime(full_file)
-                    found = self.__db.execute(sql_select, (base, extension.lstrip("."), dir, mod_tm)).fetchone()
-                    if not found:
-                        out_of_date_files.append(full_file)
+                try:
+                    if (extension.lower() in ImageCache.EXTENSIONS
+                            and not '.AppleDouble' in dir and not file.startswith('.')): # have to filter out all the Apple junk
+                        full_file = os.path.join(dir, file)
+                        mod_tm =  os.path.getmtime(full_file)
+                        found = self.__db.execute(sql_select, (base, extension.lstrip("."), dir, mod_tm)).fetchone()
+                        if not found:
+                            out_of_date_files.append(full_file)
+                except:
+                    continue
         return out_of_date_files
 
 

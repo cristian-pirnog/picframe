@@ -28,6 +28,10 @@ class InterfaceMQTT(InterfaceMQTTBase):
     """
     topic_prefix = "shellies"
 
+    def __init__(self, controller, mqtt_config):
+        super().__init__(controller, mqtt_config)
+        self.__logger = logging.getLogger("interface_mqtt_shelly.InterfaceMQTT")
+
 
     def on_connect(self, client, userdata, flags, rc):
         super().on_connect(client, userdata, flags, rc)
