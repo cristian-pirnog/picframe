@@ -25,8 +25,8 @@ sudo apt remove lxplug-ptbatt
 The pictures go in `/mnt/Pictures`.
 
 ### Configuration
-On the raspberry Pi, the configuration files go in `/mnt/picframe_data`.
-In this repository the configuration data is in the directory: `cristian_config`.
+On the raspberry Pi, the configuration file is stored in the Git repository under `cristian_config`. All the other files
+are taken directly from the repository.
 The `runPicframe.sh` script is in the `linuxenv` repository.
 
 ### Autostart
@@ -50,3 +50,10 @@ Topic: `/shellies`
 Shelly button: /shellies/button_pic_frame/input_event
 
 Shelly motion 
+
+
+### Pictures from same month of the year
+On the first week of each month, the picframe will only show pictures from the same month of
+the year. In order to do this automatically, the model is refreshed via an MQTT message.
+The script for publishing the message and the associated Cron job are in the `linuxenv` repository
+under `xcustoms/pi.home`.
