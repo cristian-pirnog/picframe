@@ -45,12 +45,22 @@ Passwords:
 
 
 
+
+
 ### Sheely controls
+#### General
 Topic: `/shellies`
 Shelly button: /shellies/button_pic_frame/input_event
+Shelly motion:  
 
-Shelly motion 
-
+#### Setting up MQTT
+This goes for the devices from the first generation (at least, for Shelly Motion 1)
+1. Connect to the device in the browser by typing its IP address (or its network name)
+1. Click on `Internet and security` tab
+  1. Click on `Enable MQTT`
+  1. Set the `Username` and `Password` as configured in the section above
+  1. Set the `Server` to `raspberrypi:1883`
+  1. Enable `Clean Session`
 
 ### Pictures from same month of the year
 On the first week of each month, the picframe will only show pictures from the same month of
