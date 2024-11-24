@@ -1,0 +1,12 @@
+name: picframe
+dependencies:
+  - Pillow
+  - PyYAML
+  - numpy
+  - pip
+  - pip:
+    - pi3d>=2.49
+    - ninepatch
+    - paho-mqtt
+    - exifread
+    - IPTCInfo3

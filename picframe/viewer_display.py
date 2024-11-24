@@ -387,10 +387,11 @@ class ViewerDisplay:
             self.__textblocks[1] = None
         self.__textblocks[side] = block
 
+
     def __draw_clock(self):
         current_time = datetime.now().strftime(self.__clock_format)
 
-        # --- Only rebuild the FixedString containing the time valud if the time string has changed.
+        # --- Only rebuild the FixedString containing the time value if the time string has changed.
         #     With the default H:M display, this will only rebuild once each minute. Note however,
         #     time strings containing a "seconds" component will rebuild once per second.
         if current_time != self.__prev_clock_time:
@@ -510,7 +511,8 @@ class ViewerDisplay:
             dt = 1.1 - (self.__name_tm - tm) / self.__show_text_tm # i.e. dt from 0.1 to 1.1
             ramp_pt = max(4.0, self.__show_text_tm / 4.0) # always > 4 so text fade will always < 4s
             # create single saw tooth over 0 to __show_text_tm
-            alpha = max(0.0, min(1.0, ramp_pt * (1.0 - abs(1.0 - 2.0 * dt)))) # function only run if image alpha is 1.0 so can use 1.0 - abs...
+            alpha = 1.0 if paused else \
+                max(0.0, min(1.0, ramp_pt * (1.0 - abs(1.0 - 2.0 * dt)))) # function only run if image alpha is 1.0 so can use 1.0 - abs...
             for block in self.__textblocks:
                 if block is not None:
                     block.sprite.set_alpha(alpha)

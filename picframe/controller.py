@@ -12,6 +12,7 @@ def make_date(txt):
     dt_tuple = tuple(int(i) for i in dt) #TODO catch badly formed dates?
     return time.mktime(dt_tuple + (0, 0, 0, 0, 0, 0))
 
+
 class Controller:
     """Controller of picframe.
 
@@ -48,11 +49,16 @@ class Controller:
         self.__location_filter = ""
         self.__where_clauses = {}
         self.__sort_clause = "exif_datetime ASC"
-        self.publish_state = lambda x, y: None
+        self.publish_state = self.noop_publish_state
         self.__keep_looping = True
         self.__location_filter = ''
         self.__tags_filter = ''
         self.__shutdown_complete = False
+
+    @staticmethod
+    def noop_publish_state(x, y):
+        pass
+
 
     @property
     def paused(self):
@@ -100,6 +106,18 @@ class Controller:
     @property
     def subdirectory(self):
         return self.__model.subdirectory
+
+    def reload_model(self):
+        self.__model.force_reload()
+
+    def show_same_month_photos(self, config: str):
+        try:
+            config = json.loads(config)
+        except:
+            config = {"activate": False}
+
+        self.__model.same_month_photos = config.get("activate", False)
+        self.reload_model()
 
     @subdirectory.setter
     def subdirectory(self, dir):
@@ -277,6 +295,11 @@ class Controller:
 
         #next_check_tm = time.time() + self.__model.get_model_config()['check_dir_tm']
         while self.__keep_looping:
+            # If the display is not on, just sleep for a bit and then go back to start of loop
+            if not self.display_is_on:
+                time.sleep(1)
+                self.__next_tm = time.time() + self.__model.time_delay
+                continue
 
             #if self.__next_tm == 0: #TODO double check why these were set when next_tm == 0
             #    time_delay = 1 # must not be 0

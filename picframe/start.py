@@ -82,7 +82,7 @@ def check_packages (packages):
 
 def main():
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-    logger = logging.getLogger("start.py")
+    logger = logging.getLogger(__file__)
     logger.info('starting %s', sys.argv)
 
     parser = argparse.ArgumentParser()
@@ -140,8 +140,11 @@ def main():
 
     mqtt_config = m.get_mqtt_config()
     if mqtt_config['use_mqtt']:
-        from picframe import interface_mqtt
-        mqtt = interface_mqtt.InterfaceMQTT(c, mqtt_config)
+        if mqtt_config['type'] == 'shelly':
+            from picframe import interface_mqtt_shelly as int_mqtt
+        else:
+            from picframe import interface_mqtt as int_mqtt
+        mqtt = int_mqtt.InterfaceMQTT(c, mqtt_config)        
         mqtt.start()
 
     http_config = m.get_http_config()

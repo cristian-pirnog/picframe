@@ -1,0 +1,21 @@
+[Unit]
+Description=PictureFrame on Pi4
+After=network.target
+After=graphical.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+Environment=PATH=/home/pi/code/picframe/build/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment="Display=:0"
+WorkingDirectory=/home/pi/code/picframe
+ExecStart=/home/pi/code/picframe/build/bin/python /home/pi/code/picframe/picframe/start.py /home/pi/code/picframe/cristian_config/picframe_data/config/configuration.yaml
+Restart=always
+RestartSec=10
+EnvironmentFile=/etc/systemd/system/picframe.env
+
+[Install]
+# WantedBy=multi-user.target
+WantedBy=graphical.target
+

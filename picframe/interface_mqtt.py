@@ -99,6 +99,8 @@ class InterfaceMQTT:
         client.subscribe(command_topic, qos=0)
 
         ## switches
+        self.__setup_switch(client, switch_topic_head, "_reload_model", "mdi:reload", available_topic)
+        self.__setup_switch(client, switch_topic_head, "_same_month_photos", "mdi:same-month", available_topic)
         self.__setup_switch(client, switch_topic_head, "_text_refresh", "mdi:refresh", available_topic)
         self.__setup_switch(client, switch_topic_head, "_delete", "mdi:delete", available_topic)
         self.__setup_switch(client, switch_topic_head, "_name_toggle", "mdi:subtitles", available_topic,
@@ -212,6 +214,11 @@ class InterfaceMQTT:
         client.publish(state_topic, "ON" if is_on else "OFF", qos=0, retain=True)
 
     def on_message(self, client, userdata, message):
+        self.__logger.info(f"Handling message for topic: {message.topic} with payload: {message.payload}")
+        payload = message.payload
+        if not payload:
+            self.__logger.info(f"Ignoring message with empty payload for topic: {message.topic}")
+            return 
         msg = message.payload.decode("utf-8")
         switch_topic_head = "homeassistant/switch/" + self.__device_id
 
@@ -330,6 +337,13 @@ class InterfaceMQTT:
             if msg == "ON":
                 client.publish(state_topic, "OFF", retain=True)
                 self.__controller.refresh_show_text()
+        # reload_model
+        elif message.topic == switch_topic_head + "_reload_model/set":
+            self.__logger.info(f"Received reload_model: {msg}")
+            self.__controller.reload_model()
+        elif message.topic == switch_topic_head + "_same_month_photos/set":
+            self.__logger.info(f"Received same_month_photos: {msg}")
+            self.__controller.show_same_month_photos(msg)
 
         ##### values ########
         # change subdirectory

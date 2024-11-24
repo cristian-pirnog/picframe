@@ -1,3 +1,5 @@
+from pathlib import Path
+import argparse
 import sqlite3
 import os
 import time
@@ -22,7 +24,8 @@ class ImageCache:
                      'IPTC Object Name': 'title'}
 
 
-    def __init__(self, picture_dir, follow_links, db_file, geo_reverse, portrait_pairs=False):
+    def __init__(self, picture_dir, follow_links, db_file, geo_reverse, portrait_pairs=False, 
+        continuous_update: bool = True):
         # TODO these class methods will crash if Model attempts to instantiate this using a
         # different version from the latest one - should this argument be taken out?
         self.__modified_folders = []
@@ -40,9 +43,9 @@ class ImageCache:
         # NB this is where the required schema is set
         self.__update_schema(3)
 
-        self.__keep_looping = True
+        self.__keep_looping = continuous_update
         self.__pause_looping = False
-        self.__shutdown_completed = False
+        self.__shutdown_completed = True
         self.__purge_files = False
 
         t = threading.Thread(target=self.__loop)
@@ -50,6 +53,7 @@ class ImageCache:
 
 
     def __loop(self):
+        self.__shutdown_completed = False
         while self.__keep_looping:
             if not self.__pause_looping:
                 self.update_cache()
@@ -116,6 +120,7 @@ class ImageCache:
             if not self.__portrait_pairs: # TODO SQL insertion? Does it matter in this app?
                 sql = """SELECT file_id FROM all_data WHERE {0} ORDER BY {1}
                     """.format(where_clause, sort_clause)
+                self.__logger.info(f"Executing query: {sql}")
                 return cursor.execute(sql).fetchall()
             else: # make two SELECTS
                 sql = """SELECT
@@ -376,13 +381,16 @@ class ImageCache:
         for dir,_date in modified_folders:
             for file in os.listdir(dir):
                 base, extension = os.path.splitext(file)
-                if (extension.lower() in ImageCache.EXTENSIONS
-                        and not '.AppleDouble' in dir and not file.startswith('.')): # have to filter out all the Apple junk
-                    full_file = os.path.join(dir, file)
-                    mod_tm =  os.path.getmtime(full_file)
-                    found = self.__db.execute(sql_select, (base, extension.lstrip("."), dir, mod_tm)).fetchone()
-                    if not found:
-                        out_of_date_files.append(full_file)
+                try:
+                    if (extension.lower() in ImageCache.EXTENSIONS
+                            and not '.AppleDouble' in dir and not file.startswith('.')): # have to filter out all the Apple junk
+                        full_file = os.path.join(dir, file)
+                        mod_tm =  os.path.getmtime(full_file)
+                        found = self.__db.execute(sql_select, (base, extension.lstrip("."), dir, mod_tm)).fetchone()
+                        if not found:
+                            out_of_date_files.append(full_file)
+                except:
+                    continue
         return out_of_date_files
 
 
@@ -507,7 +515,12 @@ class ImageCache:
 
 # If being executed (instead of imported), kick it off...
 if __name__ == "__main__":
-    cache = ImageCache(picture_dir='/home/pi/Pictures', follow_links=False, db_file='/home/pi/db.db3', geo_reverse=None)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("pic_dir", nargs='?', help="/path/to/picture/dir")
+    parser.add_argument("db_dir", nargs='?', help="/path/to/database/dir")
+    args = parser.parse_args()
+
+    cache = ImageCache(picture_dir=args.pic_dir, follow_links=False, db_file=Path(args.db_dir) / 'db.db3', geo_reverse=None)
     #cache.update_cache()
     # items = cache.query_cache("make like '%google%'", "exif_datetime asc")
     #info = cache.get_file_info(12)
