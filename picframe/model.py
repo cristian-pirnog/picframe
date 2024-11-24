@@ -51,7 +51,6 @@ DEFAULT_CONFIG = {
         'clock_justify': "R",
         'clock_text_sz': 120,
         'clock_format': "%I:%M",
-        #'codepoints': "1234567890AÄÀÆÅÃBCÇDÈÉÊEËFGHIÏÍJKLMNÑOÓÖÔŌØPQRSTUÚÙÜVWXYZaáàãæåäbcçdeéèêëfghiíïjklmnñoóôōøöpqrsßtuúüvwxyz., _-+*()&/`´'•" # limit to 121 ie 11x11 grid_size
     },
     'model': {
 

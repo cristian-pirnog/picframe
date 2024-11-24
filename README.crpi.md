@@ -30,6 +30,13 @@ are taken directly from the repository.
 The `runPicframe.sh` script is in the `linuxenv` repository.
 
 ### Autostart
+#### Run as a systemd service
+1. `sudo su`
+1. Copy the files from the `systemd` directory of this repo into `/etc/systemd/system`.
+1. Run the command `systemctl enable picframe`
+1. Reboot
+
+#### Old way
 The autostart script for picframe (`picframe.desktop`):
 * is in the `cristian_config` directory
 * goes to `~/.config/autostart`
