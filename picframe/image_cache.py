@@ -7,22 +7,11 @@ import logging
 import threading
 from picframe import get_image_meta
 
+
+
 class ImageCache:
 
     EXTENSIONS = ['.png','.jpg','.jpeg','.heif','.heic']
-    EXIF_TO_FIELD = {'EXIF FNumber': 'f_number',
-                     'Image Make': 'make',
-                     'Image Model': 'model',
-                     'EXIF ExposureTime': 'exposure_time',
-                     'EXIF ISOSpeedRatings': 'iso',
-                     'EXIF FocalLength': 'focal_length',
-                     'EXIF Rating': 'rating',
-                     'EXIF LensModel': 'lens',
-                     'EXIF DateTimeOriginal': 'exif_datetime',
-                     'IPTC Keywords': 'tags',
-                     'IPTC Caption/Abstract': 'caption',
-                     'IPTC Object Name': 'title'}
-
 
     def __init__(self, picture_dir, follow_links, db_file, geo_reverse, portrait_pairs=False, 
         continuous_update: bool = True):
@@ -43,36 +32,47 @@ class ImageCache:
         # NB this is where the required schema is set
         self.__update_schema(3)
 
-        self.__keep_looping = continuous_update
+        self.__keep_looping = True
         self.__pause_looping = False
-        self.__shutdown_completed = True
+        self._continuous_update = continuous_update
         self.__purge_files = False
 
-        t = threading.Thread(target=self.__loop)
-        t.start()
+        # Start the loop thread
+        self._loop_thread = None
+        self.start()
 
+    def __del__(self):
+        self.__logger.debug('Destroying an instance of ImageCache')
+        self.__keep_looping = False
+        # Block until the loop thread finishes
+        while self._loop_thread and self._loop_thread.is_alive():
+            time.sleep(0.1)
+        self.__db.close()
+        self.__logger.debug('ImageCache instance destroyed')
 
     def __loop(self):
-        self.__shutdown_completed = False
+        self.__logger.info('Entering the cache update loop')
         while self.__keep_looping:
             if not self.__pause_looping:
                 self.update_cache()
                 time.sleep(2.0)
+            # If no continuous update, stop looping
+            self.__keep_looping = self._continuous_update
             time.sleep(0.01)
         self.__update_file_stats() # write any unsaved file stats before closing
         self.__db.commit() # close after update_cache finished for last time
-        self.__db.close()
-        self.__shutdown_completed = True
-
+        self.__logger.info('Exiting the cache update loop')
 
     def pause_looping(self, value):
         self.__pause_looping = value
 
-
-    def stop(self):
-        self.__keep_looping = False
-        while not self.__shutdown_completed:
-            time.sleep(0.05) # make function blocking to ensure staged shutdown
+    def start(self):
+        self.__logger.info('Starting the cache update loop')
+        self.__keep_looping = True
+        # Start the loop thread only if it's not already running
+        if self._loop_thread is None or not self._loop_thread.is_alive():
+            self._loop_thread = threading.Thread(target=self.__loop)
+            self._loop_thread.start()
 
     def purge_files(self):
         self.__purge_files = True

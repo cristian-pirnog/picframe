@@ -73,4 +73,5 @@ This goes for the devices from the first generation (at least, for Shelly Motion
 On the first week of each month, the picframe will only show pictures from the same month of
 the year. In order to do this automatically, the model is refreshed via an MQTT message.
 The script for publishing the message and the associated Cron job are in the `linuxenv` repository
-under `xcustoms/pi.home`.
+under `xcustoms/pi.home/CRON/refreshPicframeModel.sh`. The username/password for the MQTT publisher
+must be placed in a 

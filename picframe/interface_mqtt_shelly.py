@@ -26,24 +26,25 @@ class InterfaceMQTT(InterfaceMQTTBase):
     -------
 
     """
-    topic_prefix = "shellies"
 
     def __init__(self, controller, mqtt_config):
         super().__init__(controller, mqtt_config)
         self.__logger = logging.getLogger("interface_mqtt_shelly.InterfaceMQTT")
+        self._subscriber_topic_prefix = mqtt_config["subscriber_topic_prefix"]
 
 
     def on_connect(self, client, userdata, flags, rc):
-        super().on_connect(client, userdata, flags, rc)
+        # We don't want to subscribe to all the topics from the default InterfaceMQTT
+        # super().on_connect(client, userdata, flags, rc)
         
         if rc != 0:
             self.__logger.warning("Can't connect with mqtt broker. Reason = {0}".format(rc))
             return
         self.__logger.info('Connected with MQTT broker')
 
-        self.__logger.info(f'Subscribing to topic')
+        self.__logger.info(f'Subscribing to topic: {self._subscriber_topic_prefix}')
         try:
-            result = client.subscribe(f'{self.topic_prefix}/#', qos=0)
+            result = client.subscribe(f'{self._subscriber_topic_prefix}/#', qos=0)
             self.__logger.info(f'Got result {result} from MQTT subscribe command')
         except Exception as e:
             self.__logger.error(f'Got exception: {e}')
@@ -53,21 +54,23 @@ class InterfaceMQTT(InterfaceMQTTBase):
 
     def on_message(self, client, userdata, message):
         self.__logger.debug('on_message called')
-        if not message.topic.startswith(self.topic_prefix):
+        if not message.topic.startswith(self._subscriber_topic_prefix):
             super().on_message(client, userdata, message)
             return
 
-        self.__logger.debug(f'Message topic: {message.topic}')
         try:
-            self.__logger.debug(f'Got MQTT message {message.payload}')
+            self.__logger.info(f"Topic {message.topic}. Message {message.payload}")
             msg = json.loads(message.payload.decode("utf-8"))
             self.__logger.debug(f'Decoded MQTT payload {msg}')
 
             # display
-            if r'button_pic_frame/input_event' in message.topic:
+            if f"{self._subscriber_topic_prefix}/button/input_event" in message.topic:
                 self.handle_button(msg)
-            elif re.search('.*/shellymotionsensor-.*/status', message.topic) is not None:
+            elif message.topic == f"{self._subscriber_topic_prefix}/motion":
                 self.handle_motion_sensor(msg)
+            elif message.topic == f"{self._subscriber_topic_prefix}/reload_model/set":
+                self.__logger.debug(f"Received reload_model: {msg}")
+                self.__controller.reload_model()
             else:
                 self.__logger.debug(f'Ignoring MQTT message from topic: {message.topic}')
         except Exception as e:
@@ -83,7 +86,7 @@ class InterfaceMQTT(InterfaceMQTTBase):
     def handle_button(self, msg):
         self.__logger.debug(f"Handling button message: {msg}")
         if msg['event'] == 'S':
-            self.__logger.info('Pausing playback')
+            self.__logger.debug('Toggling playback pause')
             self.__controller.paused = not self.__controller.paused
             self.__logger.debug(f'Paused status is: {self.__controller.paused}')
         elif msg['event'] == 'SS': # Go to previous picture

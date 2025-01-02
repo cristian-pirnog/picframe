@@ -90,6 +90,7 @@ class ViewerDisplay:
         self.__matter = None
         self.__prev_clock_time = None
         self.__clock_overlay = None
+        self.__show_month: bool = config.get('show_month', False)
         self.__show_clock = config['show_clock']
         self.__clock_justify = config['clock_justify']
         self.__clock_text_sz = config['clock_text_sz']
@@ -149,6 +150,10 @@ class ViewerDisplay:
             else: #TODO anything else ok to turn it off?
                 bits = 65535 ^ bit
                 self.__show_text &= bits # turn it off
+
+    def set_show_month(self, value: bool) -> None:
+        """Set wether the time text will also show the month"""
+        self.__show_month = value
 
     def text_is_on(self, txt_key):
         return self.__show_text & txt_to_bit(txt_key)
@@ -395,9 +400,12 @@ class ViewerDisplay:
         #     With the default H:M display, this will only rebuild once each minute. Note however,
         #     time strings containing a "seconds" component will rebuild once per second.
         if current_time != self.__prev_clock_time:
+            month_prefix = f"{datetime.now().strftime('%b')} - " if self.__show_month else ""
+
             width = self.__display.width - 50
-            self.__clock_overlay = pi3d.FixedString(self.__font_file, current_time, font_size=self.__clock_text_sz,
-                shader=self.__flat_shader, width=width, shadow_radius=3)
+            self.__clock_overlay = pi3d.FixedString(self.__font_file, f"{month_prefix}{current_time}", 
+                                                    font_size=self.__clock_text_sz, shader=self.__flat_shader, 
+                                                    width=width, shadow_radius=3)
             x = (width - self.__clock_overlay.sprite.width) // 2
             if self.__clock_justify == "L":
                 x *= -1

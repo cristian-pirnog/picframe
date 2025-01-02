@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 import sys
 import argparse
@@ -9,6 +10,7 @@ from distutils.dir_util import copy_tree
 from picframe import model, viewer_display, controller, interface_kbd, interface_http, __version__
 
 PICFRAME_DATA_DIR = 'picframe_data'
+DEFAULT_CONFIGFILE = f"~/{PICFRAME_DATA_DIR}/config/configuration.yaml"
 
 def copy_files(pkgdir, dest, target):
     try:
@@ -92,7 +94,7 @@ def main():
                         metavar=('DESTINATION_DIRECTORY'))
     group.add_argument("-v", "--version", help="print version information",
                         action="store_true")
-    group.add_argument("configfile", nargs='?', help="/path/to/configuration.yaml")
+    group.add_argument("configfile", nargs='?', help="/path/to/configuration.yaml", default=DEFAULT_CONFIGFILE)
     args = parser.parse_args()
     if args.initialize:
         if os.geteuid() == 0:
@@ -126,10 +128,8 @@ def main():
         print("\nChecking optional packages......")
         check_packages(['pyheif'])
         return
-    elif args.configfile:
-        m = model.Model(args.configfile)
     else:
-        m = model.Model()
+        m = model.Model(datetime.now().day <= 7, args.configfile)
 
     v = viewer_display.ViewerDisplay(m.get_viewer_config())
     c = controller.Controller(m, v)

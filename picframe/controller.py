@@ -1,11 +1,26 @@
 """Controller of picframe."""
 
+from datetime import datetime
 import logging
 import time
 import json
 import os
 import signal
 import sys
+
+
+EXIF_TO_FIELD = {'EXIF FNumber': 'f_number',
+                    'Image Make': 'make',
+                    'Image Model': 'model',
+                    'EXIF ExposureTime': 'exposure_time',
+                    'EXIF ISOSpeedRatings': 'iso',
+                    'EXIF FocalLength': 'focal_length',
+                    'EXIF Rating': 'rating',
+                    'EXIF LensModel': 'lens',
+                    'EXIF DateTimeOriginal': 'exif_datetime',
+                    'IPTC Keywords': 'tags',
+                    'IPTC Caption/Abstract': 'caption',
+                    'IPTC Object Name': 'title'}
 
 def make_date(txt):
     dt = txt.replace('/',':').replace('-',':').replace(',',':').replace('.',':').split(':')
@@ -108,15 +123,18 @@ class Controller:
         return self.__model.subdirectory
 
     def reload_model(self):
+        self.__viewer.set_show_month(datetime.now().day <= 7) 
         self.__model.force_reload()
-
+ 
     def show_same_month_photos(self, config: str):
         try:
             config = json.loads(config)
         except:
             config = {"activate": False}
 
-        self.__model.same_month_photos = config.get("activate", False)
+        value = config.get("activate", False)
+        self.__model.same_month_photos = value
+        self.__viewer.set_show_month(value)
         self.reload_model()
 
     @subdirectory.setter
@@ -289,9 +307,10 @@ class Controller:
         (pic, _) = self.__model.get_current_pics()
         return pic.fname
 
-    def loop(self): #TODO exit loop gracefully and call image_cache.stop()
+    def loop(self):
         # catch ctrl-c
         signal.signal(signal.SIGINT, self.__signal_handler)
+        signal.signal(signal.SIGTERM, self.__signal_handler)
 
         #next_check_tm = time.time() + self.__model.get_model_config()['check_dir_tm']
         while self.__keep_looping:
@@ -325,7 +344,7 @@ class Controller:
                         elif key == 'PICFRAME LOCATION':
                             image_attr['location'] = pics[0].location
                         else:
-                            field_name = self.__model.EXIF_TO_FIELD[key]
+                            field_name = EXIF_TO_FIELD[key]
                             image_attr[key] = pics[0].__dict__[field_name] #TODO nicer using namedtuple for Pic
                     self.publish_state(pics[0].fname, image_attr)
             self.__model.pause_looping = self.__viewer.is_in_transition()
@@ -343,10 +362,9 @@ class Controller:
         self.__keep_looping = False
         while not self.__shutdown_complete:
             time.sleep(0.05) # block until main loop has stopped
-        self.__model.stop_image_chache() # close db tidily (blocks till closed)
         self.__viewer.slideshow_stop() # do this last
 
     def __signal_handler(self, sig, frame):
-        print('You pressed Ctrl-c!')
+        print(f'Stopping picframe due to signal: {sig}')
         self.__shutdown_complete = True
         self.stop()

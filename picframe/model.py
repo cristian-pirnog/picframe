@@ -11,7 +11,6 @@ import json
 import locale
 from picframe import geo_reverse, image_cache
 
-DEFAULT_CONFIGFILE = "~/picframe_data/config/configuration.yaml"
 DEFAULT_CONFIG = {
     'viewer': {
         'blur_amount': 12,
@@ -84,6 +83,7 @@ DEFAULT_CONFIG = {
         'password': '',
         'tls': '',
         'device_id': 'picframe',                                 # unique id of device. change if there is more than one picture frame
+        'subscriber_topic_prefix': 'shellies/'
     },
     'http': {
         'use_http': False,
@@ -129,11 +129,10 @@ class Pic: #TODO could this be done more elegantly with namedtuple
 
 class Model:
 
-    def __init__(self, configfile = DEFAULT_CONFIGFILE):
+    def __init__(self, same_month_photos: bool, configfile):
         self.__logger = logging.getLogger("model.Model")
         self.__logger.debug('creating an instance of Model')
         self.__config = DEFAULT_CONFIG
-        self.__last_file_change = 0.0
         configfile = os.path.expanduser(configfile)
         self.__logger.info("Open config file: %s:",configfile)
         with open(configfile, 'r') as stream:
@@ -164,7 +163,7 @@ class Model:
 
         self.__file_list = [] # this is now a list of tuples i.e (file_id1,) or (file_id1, file_id2)
         self.__number_of_files = 0 # this is shortcut for len(__file_list)
-        self.same_month_photos = False
+        self.same_month_photos = same_month_photos
         self.__reload_files = True
         self.__file_index = 0 # pointer to next position in __file_list
         self.__current_pics = (None, None) # this hold a tuple of (pic, None) or two pic objects if portrait pairs
@@ -183,15 +182,19 @@ class Model:
                                                     model_config['follow_links'],
                                                     os.path.expanduser(model_config['db_file']),
                                                     self.__geo_reverse,
-                                                    model_config['portrait_pairs'])
+                                                    model_config['portrait_pairs'],
+                                                    continuous_update=model_config["update_cache"])
         self.__deleted_pictures = model_config['deleted_pictures']
         self.__no_files_img = os.path.expanduser(model_config['no_files_img'])
         self.__sort_cols = model_config['sort_cols']
         self.__col_names = None
         self.__where_clauses = {} # these will be modified by controller
+        self.__logger.info("Completed initialization")
 
     def get_viewer_config(self):
-        return self.__config['viewer']
+        print("\tReturning viewer config:")
+        print({**self.__config['viewer'], "show_month": self.same_month_photos})
+        return {**self.__config['viewer'], "show_month": self.same_month_photos}
 
     def get_model_config(self):
         return self.__config['model']
@@ -237,10 +240,6 @@ class Model:
             self.__reload_files = True
 
     @property
-    def EXIF_TO_FIELD(self): # bit convoluted TODO hold in config? not really configurable
-        return self.__image_cache.EXIF_TO_FIELD
-
-    @property
     def shuffle(self):
         return self.__config['model']['shuffle']
 
@@ -266,9 +265,6 @@ class Model:
 
     def pause_looping(self, val):
         self.__image_cache.pause_looping(val)
-
-    def stop_image_chache(self):
-        self.__image_cache.stop()
 
     def purge_files(self):
         self.__image_cache.purge_files()
@@ -302,6 +298,7 @@ class Model:
 
             # Reload the playlist if requested
             if self.__reload_files:
+                self.__image_cache.start()
                 for _ in range(5): # give image_cache chance on first load if a large directory
                     self.__get_files()
                     missing_images = 0
