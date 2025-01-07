@@ -66,7 +66,7 @@ class InterfaceMQTT(InterfaceMQTTBase):
             # display
             if f"{self._subscriber_topic_prefix}/button/input_event" in message.topic:
                 self.handle_button(msg)
-            elif message.topic == f"{self._subscriber_topic_prefix}/motion":
+            elif message.topic == f"{self._subscriber_topic_prefix}/motion/status":
                 self.handle_motion_sensor(msg)
             elif message.topic == f"{self._subscriber_topic_prefix}/reload_model/set":
                 self.__logger.debug(f"Received reload_model: {msg}")
