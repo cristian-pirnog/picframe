@@ -2,13 +2,12 @@
 
 import logging
 import time
-import paho.mqtt.client as mqtt
 import json
 import os
 from picframe import __version__
 
 
-class InterfaceMQTT:
+class MQTTHomeAssistant(InterfaceMQTT):
     """MQTT interface of picframe.
 
     This interface interacts via mqtt with the user to steer the image display.
@@ -25,48 +24,20 @@ class InterfaceMQTT:
     """
 
     def __init__(self, controller, mqtt_config):
-        self.__logger = logging.getLogger("interface_mqtt.InterfaceMQTT")
-        self.__logger.info('creating an instance of InterfaceMQTT')
-        self.__controller = controller
+        self.super().__init__(controller, mqtt_config)
         try:
-            device_id = mqtt_config['device_id']
-            self.__client = mqtt.Client(client_id = device_id, clean_session=True)
-            login = mqtt_config['login']
-            password = mqtt_config['password']
-            self.__client.username_pw_set(login, password)
-            tls = mqtt_config['tls']
-            if tls:
-                self.__client.tls_set(tls)
-            server = mqtt_config['server']
-            port = mqtt_config['port']
-            self.__client.connect(server, port, 60)
-            self.__client.will_set("homeassistant/switch/" + mqtt_config['device_id'] + "/available", "offline", qos=0, retain=True)
-            self.__client.on_connect = self.on_connect
-            self.__client.on_message = self.on_message
+            self._client.will_set("homeassistant/switch/" + mqtt_config['device_id'] + "/available", "offline", qos=0, retain=True)
+            self._client.on_connect = self.on_connect
+            self._client.on_message = self.on_message
             self.__device_id = mqtt_config['device_id']
         except Exception as e:
-            self.__logger.info("MQTT not set up because of: {}".format(e))
-
-    def start(self):
-        try:
-            self.__controller.publish_state = self.publish_state
-            self.__client.loop_start()
-        except Exception as e:
-            self.__logger.info("MQTT not started because of: {}".format(e))
-
-    def stop(self):
-        try:
-            self.__controller.publish_state = None
-            self.__client.loop_stop()
-        except Exception as e:
-            self.__logger.info("MQTT stopping failed because of: {}".format(e))
-
+            self._logger.info("MQTT not set up because of: {}".format(e))
 
     def on_connect(self, client, userdata, flags, rc):
         if rc != 0:
-            self.__logger.warning("Can't connect with mqtt broker. Reason = {0}".format(rc))
+            self._logger.warning("Can't connect with mqtt broker. Reason = {0}".format(rc))
             return
-        self.__logger.info('Connected with mqtt broker')
+        self._logger.info('Connected with mqtt broker')
 
         sensor_topic_head = "homeassistant/sensor/" + self.__device_id
         number_topic_head = "homeassistant/number/" + self.__device_id
@@ -92,7 +63,7 @@ class InterfaceMQTT:
         self.__setup_number(client, number_topic_head, "matting_images", 0.0, 1.0, 0.01, "mdi:image-frame", available_topic)
 
         ## selects
-        _, dir_list = self.__controller.get_directory_list()
+        _, dir_list = self._controller.get_directory_list()
         dir_list.sort()
         self.__setup_select(client, select_topic_head, "directory", dir_list, "mdi:folder-multiple-image", available_topic, init=True)
         command_topic = self.__device_id + "/directory"
@@ -104,26 +75,26 @@ class InterfaceMQTT:
         self.__setup_switch(client, switch_topic_head, "_text_refresh", "mdi:refresh", available_topic)
         self.__setup_switch(client, switch_topic_head, "_delete", "mdi:delete", available_topic)
         self.__setup_switch(client, switch_topic_head, "_name_toggle", "mdi:subtitles", available_topic,
-                            self.__controller.text_is_on("name"))
+                            self._controller.text_is_on("name"))
         self.__setup_switch(client, switch_topic_head, "_title_toggle", "mdi:subtitles", available_topic,
-                            self.__controller.text_is_on("title"))
+                            self._controller.text_is_on("title"))
         self.__setup_switch(client, switch_topic_head, "_caption_toggle", "mdi:subtitles", available_topic,
-                            self.__controller.text_is_on("caption"))
+                            self._controller.text_is_on("caption"))
         self.__setup_switch(client, switch_topic_head, "_date_toggle", "mdi:calendar-today", available_topic,
-                            self.__controller.text_is_on("date"))
+                            self._controller.text_is_on("date"))
         self.__setup_switch(client, switch_topic_head, "_location_toggle", "mdi:crosshairs-gps", available_topic,
-                            self.__controller.text_is_on("location"))
+                            self._controller.text_is_on("location"))
         self.__setup_switch(client, switch_topic_head, "_directory_toggle", "mdi:folder", available_topic,
-                            self.__controller.text_is_on("directory"))
+                            self._controller.text_is_on("directory"))
         self.__setup_switch(client, switch_topic_head, "_text_off", "mdi:badge-account-horizontal-outline", available_topic)
         self.__setup_switch(client, switch_topic_head, "_display", "mdi:panorama", available_topic,
-                            self.__controller.display_is_on)
+                            self._controller.display_is_on)
         self.__setup_switch(client, switch_topic_head, "_clock", "mdi:clock-outline", available_topic,
-                            self.__controller.clock_is_on)
+                            self._controller.clock_is_on)
         self.__setup_switch(client, switch_topic_head, "_shuffle", "mdi:shuffle-variant", available_topic,
-                            self.__controller.shuffle)
+                            self._controller.shuffle)
         self.__setup_switch(client, switch_topic_head, "_paused", "mdi:pause", available_topic,
-                            self.__controller.paused)
+                            self._controller.paused)
         self.__setup_switch(client, switch_topic_head, "_back", "mdi:skip-previous", available_topic)
         self.__setup_switch(client, switch_topic_head, "_next", "mdi:skip-next", available_topic)
 
@@ -214,10 +185,10 @@ class InterfaceMQTT:
         client.publish(state_topic, "ON" if is_on else "OFF", qos=0, retain=True)
 
     def on_message(self, client, userdata, message):
-        self.__logger.info(f"Handling message for topic: {message.topic} with payload: {message.payload}")
+        self._logger.info(f"Handling message for topic: {message.topic} with payload: {message.payload}")
         payload = message.payload
         if not payload:
-            self.__logger.info(f"Ignoring message with empty payload for topic: {message.topic}")
+            self._logger.info(f"Ignoring message with empty payload for topic: {message.topic}")
             return 
         msg = message.payload.decode("utf-8")
         switch_topic_head = "homeassistant/switch/" + self.__device_id
@@ -227,97 +198,97 @@ class InterfaceMQTT:
         if message.topic == switch_topic_head + "_display/set":
             state_topic = switch_topic_head + "_display/state"
             if msg == "ON":
-                self.__controller.display_is_on = True
+                self._controller.display_is_on = True
                 client.publish(state_topic, "ON", retain=True)
             elif msg == "OFF":
-                self.__controller.display_is_on = False
+                self._controller.display_is_on = False
                 client.publish(state_topic, "OFF", retain=True)
         # clock
         if message.topic == switch_topic_head + "_clock/set":
             state_topic = switch_topic_head + "_clock/state"
             if msg == "ON":
-                self.__controller.clock_is_on = True
+                self._controller.clock_is_on = True
                 client.publish(state_topic, "ON", retain=True)
             elif msg == "OFF":
-                self.__controller.clock_is_on = False
+                self._controller.clock_is_on = False
                 client.publish(state_topic, "OFF", retain=True)
         # shuffle
         elif message.topic == switch_topic_head + "_shuffle/set":
             state_topic = switch_topic_head + "_shuffle/state"
             if msg == "ON":
-                self.__controller.shuffle = True
+                self._controller.shuffle = True
                 client.publish(state_topic, "ON", retain=True)
             elif msg == "OFF":
-                self.__controller.shuffle = False
+                self._controller.shuffle = False
                 client.publish(state_topic, "OFF", retain=True)
         # paused
         elif message.topic == switch_topic_head + "_paused/set":
             state_topic = switch_topic_head + "_paused/state"
             if msg == "ON":
-                self.__controller.paused = True
+                self._controller.paused = True
                 client.publish(state_topic, "ON", retain=True)
             elif msg == "OFF":
-                self.__controller.paused = False
+                self._controller.paused = False
                 client.publish(state_topic, "OFF", retain=True)
         # back buttons
         elif message.topic == switch_topic_head + "_back/set":
             state_topic = switch_topic_head + "_back/state"
             if msg == "ON":
                 client.publish(state_topic, "OFF", retain=True)
-                self.__controller.back()
+                self._controller.back()
         # next buttons
         elif message.topic == switch_topic_head + "_next/set":
             state_topic = switch_topic_head + "_next/state"
             if msg == "ON":
                 client.publish(state_topic, "OFF", retain=True)
-                self.__controller.next()
+                self._controller.next()
         # delete
         elif message.topic == switch_topic_head + "_delete/set":
             state_topic = switch_topic_head + "_delete/state"
             if msg == "ON":
                 client.publish(state_topic, "OFF", retain=True)
-                self.__controller.delete()
+                self._controller.delete()
         # title on
         elif message.topic == switch_topic_head + "_title_toggle/set":
             state_topic = switch_topic_head + "_title_toggle/state"
             if msg in ("ON", "OFF"):
-                self.__controller.set_show_text("title", msg)
+                self._controller.set_show_text("title", msg)
                 client.publish(state_topic, msg, retain=True)
         # caption on
         elif message.topic == switch_topic_head + "_caption_toggle/set":
             state_topic = switch_topic_head + "_caption_toggle/state"
             if msg in ("ON", "OFF"):
-                self.__controller.set_show_text("caption", msg)
+                self._controller.set_show_text("caption", msg)
                 client.publish(state_topic, msg, retain=True)
         # name on
         elif message.topic == switch_topic_head + "_name_toggle/set":
             state_topic = switch_topic_head + "_name_toggle/state"
             if msg in ("ON", "OFF"):
-                self.__controller.set_show_text("name", msg)
+                self._controller.set_show_text("name", msg)
                 client.publish(state_topic, msg, retain=True)
         # date_on
         elif message.topic == switch_topic_head + "_date_toggle/set":
             state_topic = switch_topic_head + "_date_toggle/state"
             if msg in ("ON", "OFF"):
-                self.__controller.set_show_text("date", msg)
+                self._controller.set_show_text("date", msg)
                 client.publish(state_topic, msg, retain=True)
         # location_on
         elif message.topic == switch_topic_head + "_location_toggle/set":
             state_topic = switch_topic_head + "_location_toggle/state"
             if msg in ("ON", "OFF"):
-                self.__controller.set_show_text("location", msg)
+                self._controller.set_show_text("location", msg)
                 client.publish(state_topic, msg, retain=True)
         # directory_on
         elif message.topic == switch_topic_head + "_directory_toggle/set":
             state_topic = switch_topic_head + "_directory_toggle/state"
             if msg in ("ON", "OFF"):
-                self.__controller.set_show_text("folder", msg)
+                self._controller.set_show_text("folder", msg)
                 client.publish(state_topic, msg, retain=True)
         # text_off
         elif message.topic == switch_topic_head + "_text_off/set":
             state_topic = switch_topic_head + "_text_off/state"
             if msg == "ON":
-                self.__controller.set_show_text()
+                self._controller.set_show_text()
                 client.publish(state_topic, "OFF", retain=True)
                 state_topic = switch_topic_head + "_directory_toggle/state"
                 client.publish(state_topic, "OFF", retain=True)
@@ -336,60 +307,60 @@ class InterfaceMQTT:
             state_topic = switch_topic_head + "_text_refresh/state"
             if msg == "ON":
                 client.publish(state_topic, "OFF", retain=True)
-                self.__controller.refresh_show_text()
+                self._controller.refresh_show_text()
         # reload_model
         elif message.topic == switch_topic_head + "_reload_model/set":
-            self.__logger.info(f"Received reload_model: {msg}")
-            self.__controller.reload_model()
+            self._logger.info(f"Received reload_model: {msg}")
+            self._controller.reload_model()
         elif message.topic == switch_topic_head + "_same_month_photos/set":
-            self.__logger.info(f"Received same_month_photos: {msg}")
-            self.__controller.show_same_month_photos(msg)
+            self._logger.info(f"Received same_month_photos: {msg}")
+            self._controller.show_same_month_photos(msg)
 
         ##### values ########
         # change subdirectory
         elif message.topic == self.__device_id + "/directory":
-            self.__logger.info("Recieved subdirectory: %s", msg)
-            self.__controller.subdirectory = msg
+            self._logger.info("Recieved subdirectory: %s", msg)
+            self._controller.subdirectory = msg
         # date_from
         elif message.topic == self.__device_id + "/date_from":
-            self.__logger.info("Recieved date_from: %s", msg)
-            self.__controller.date_from = msg
+            self._logger.info("Recieved date_from: %s", msg)
+            self._controller.date_from = msg
         # date_to
         elif message.topic == self.__device_id + "/date_to":
-            self.__logger.info("Recieved date_to: %s", msg)
-            self.__controller.date_to = msg
+            self._logger.info("Recieved date_to: %s", msg)
+            self._controller.date_to = msg
         # fade_time
         elif message.topic == self.__device_id + "/fade_time":
-            self.__logger.info("Recieved fade_time: %s", msg)
-            self.__controller.fade_time = float(msg)
+            self._logger.info("Recieved fade_time: %s", msg)
+            self._controller.fade_time = float(msg)
         # time_delay
         elif message.topic == self.__device_id + "/time_delay":
-            self.__logger.info("Recieved time_delay: %s", msg)
-            self.__controller.time_delay = float(msg)
+            self._logger.info("Recieved time_delay: %s", msg)
+            self._controller.time_delay = float(msg)
         # brightness
         elif message.topic == self.__device_id + "/brightness":
-            self.__logger.info("Recieved brightness: %s", msg)
-            self.__controller.brightness = float(msg)
+            self._logger.info("Recieved brightness: %s", msg)
+            self._controller.brightness = float(msg)
         # matting_images
         elif message.topic == self.__device_id + "/matting_images":
-            self.__logger.info("Received matting_images: %s", msg)
-            self.__controller.matting_images = float(msg)
+            self._logger.info("Received matting_images: %s", msg)
+            self._controller.matting_images = float(msg)
         # location filter
         elif message.topic == self.__device_id + "/location_filter":
-            self.__logger.info("Recieved location filter: %s", msg)
-            self.__controller.location_filter = msg
+            self._logger.info("Recieved location filter: %s", msg)
+            self._controller.location_filter = msg
         # tags filter
         elif message.topic == self.__device_id + "/tags_filter":
-            self.__logger.info("Recieved tags filter: %s", msg)
-            self.__controller.tags_filter = msg
+            self._logger.info("Recieved tags filter: %s", msg)
+            self._controller.tags_filter = msg
 
         # set the flag to purge files from database
         elif message.topic == self.__device_id + "/purge_files":
-            self.__controller.purge_files()
+            self._controller.purge_files()
 
         # stop loops and end program
         elif message.topic == self.__device_id + "/stop":
-            self.__controller.stop()
+            self._controller.stop()
 
     def publish_state(self, image, image_attr):
         sensor_topic_head =  "homeassistant/sensor/" + self.__device_id
@@ -401,43 +372,43 @@ class InterfaceMQTT:
 
         ## sensor
         # directory sensor
-        actual_dir, dir_list = self.__controller.get_directory_list()
+        actual_dir, dir_list = self._controller.get_directory_list()
         sensor_state_payload["directory"] = actual_dir
         # image counter sensor
-        sensor_state_payload["image_counter"] = str(self.__controller.get_number_of_files())
+        sensor_state_payload["image_counter"] = str(self._controller.get_number_of_files())
         # image sensor
         _, tail = os.path.split(image)
         sensor_state_payload["image"] = tail
         # date_from
-        sensor_state_payload["date_from"] = int(self.__controller.date_from)
+        sensor_state_payload["date_from"] = int(self._controller.date_from)
         # date_to
-        sensor_state_payload["date_to"] = int(self.__controller.date_to)
+        sensor_state_payload["date_to"] = int(self._controller.date_to)
         # location_filter
-        sensor_state_payload["location_filter"] = self.__controller.location_filter
+        sensor_state_payload["location_filter"] = self._controller.location_filter
         # tags_filter
-        sensor_state_payload["tags_filter"] = self.__controller.tags_filter
+        sensor_state_payload["tags_filter"] = self._controller.tags_filter
 
         ## number state
         # time_delay
-        sensor_state_payload["time_delay"] = self.__controller.time_delay
+        sensor_state_payload["time_delay"] = self._controller.time_delay
         # fade_time
-        sensor_state_payload["fade_time"] = self.__controller.fade_time
+        sensor_state_payload["fade_time"] = self._controller.fade_time
         # brightness
-        sensor_state_payload["brightness"] = self.__controller.brightness
+        sensor_state_payload["brightness"] = self._controller.brightness
         # matting_images
-        sensor_state_payload["matting_images"] = self.__controller.matting_images
+        sensor_state_payload["matting_images"] = self._controller.matting_images
 
         # send last will and testament
         available_topic = switch_topic_head + "/available"
-        self.__client.publish(available_topic, "online", qos=0, retain=True)
+        self._client.publish(available_topic, "online", qos=0, retain=True)
 
         #pulish sensors
         attributes_topic = sensor_topic_head + "_image/attributes"
-        self.__logger.debug("Send image attributes: %s", image_attr)
-        self.__client.publish(attributes_topic, json.dumps(image_attr), qos=0, retain=False)
+        self._logger.debug("Send image attributes: %s", image_attr)
+        self._client.publish(attributes_topic, json.dumps(image_attr), qos=0, retain=False)
         dir_list.sort()
-        self.__setup_select(self.__client, select_topic_head, "directory", dir_list, "mdi:folder-multiple-image", available_topic, init=False)
+        self.__setup_select(self._client, select_topic_head, "directory", dir_list, "mdi:folder-multiple-image", available_topic, init=False)
 
-        self.__logger.info("Send sensor state: %s", sensor_state_payload)
-        self.__client.publish(sensor_state_topic, json.dumps(sensor_state_payload), qos=0, retain=False)
+        self._logger.info("Send sensor state: %s", sensor_state_payload)
+        self._client.publish(sensor_state_topic, json.dumps(sensor_state_payload), qos=0, retain=False)
 

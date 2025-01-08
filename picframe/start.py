@@ -138,15 +138,6 @@ def main():
     if m.get_model_config()['use_kbd']:
         interface_kbd.InterfaceKbd(c) # TODO make kbd failsafe
 
-    mqtt_config = m.get_mqtt_config()
-    if mqtt_config['use_mqtt']:
-        if mqtt_config['type'] == 'shelly':
-            from picframe import interface_mqtt_shelly as int_mqtt
-        else:
-            from picframe import interface_mqtt as int_mqtt
-        mqtt = int_mqtt.InterfaceMQTT(c, mqtt_config)        
-        mqtt.start()
-
     http_config = m.get_http_config()
     model_config = m.get_model_config()
     if http_config['use_http']:

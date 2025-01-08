@@ -8,6 +8,7 @@ import os
 import signal
 import sys
 
+from picframe.mqtt.factory import MQTTFactory
 
 EXIF_TO_FIELD = {'EXIF FNumber': 'f_number',
                     'Image Make': 'make',
@@ -69,6 +70,12 @@ class Controller:
         self.__location_filter = ''
         self.__tags_filter = ''
         self.__shutdown_complete = False
+        self._mqtt = MQTTFactory.create(model.get_mqtt_config(), self)
+        self._mqtt.start()
+
+
+    def __del__(self):
+        self._mqtt.stop()
 
     @staticmethod
     def noop_publish_state(x, y):
