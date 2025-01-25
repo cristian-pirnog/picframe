@@ -9,7 +9,7 @@ import re
 
 from picframe.mqtt.interface import InterfaceMQTT
 
-class MQTTHomeShelly(InterfaceMQTT):
+class MQTTShelly(InterfaceMQTT):
     """MQTT interface of picframe.
 
     This interface interacts via mqtt with the user to steer the image display via Shelly
@@ -31,10 +31,7 @@ class MQTTHomeShelly(InterfaceMQTT):
         self._subscriber_topic_prefix = mqtt_config["subscriber_topic_prefix"]
 
 
-    def on_connect(self, client, userdata, flags, rc):
-        # We don't want to subscribe to all the topics from the default InterfaceMQTT
-        # super().on_connect(client, userdata, flags, rc)
-        
+    def on_connect(self, client, userdata, flags, rc):        
         if rc != 0:
             self._logger.warning("Can't connect with mqtt broker. Reason = {0}".format(rc))
             return

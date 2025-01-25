@@ -3,11 +3,11 @@ import logging
 import sys
 import argparse
 import os
-import ssl
 import locale
 from distutils.dir_util import copy_tree
 
-from picframe import model, viewer_display, controller, interface_kbd, interface_http, __version__
+from picframe import model, viewer_display, controller, config, __version__
+from picframe.config import ConfigSection, Config
 
 PICFRAME_DATA_DIR = 'picframe_data'
 DEFAULT_CONFIGFILE = f"~/{PICFRAME_DATA_DIR}/config/configuration.yaml"
@@ -128,32 +128,12 @@ def main():
         print("\nChecking optional packages......")
         check_packages(['pyheif'])
         return
-    else:
-        m = model.Model(datetime.now().day <= 7, args.configfile)
 
-    v = viewer_display.ViewerDisplay(m.get_viewer_config())
-    c = controller.Controller(m, v)
+    config = Config(args.configfile)
+    m = model.Model(config.get(ConfigSection.MODEL))
+    v = viewer_display.ViewerDisplay(config.get(ConfigSection.VIEWER))
+    c = controller.Controller(m, v, config)
     c.start()
-
-    if m.get_model_config()['use_kbd']:
-        interface_kbd.InterfaceKbd(c) # TODO make kbd failsafe
-
-    http_config = m.get_http_config()
-    model_config = m.get_model_config()
-    if http_config['use_http']:
-        server = interface_http.InterfaceHttp(c, http_config['path'], model_config['pic_dir'], model_config['no_files_img'], http_config['port'])
-        if http_config['use_ssl']:
-            server.socket = ssl.wrap_socket(
-                server.socket,
-                keyfile = http_config['keyfile'],
-                certfile = http_config['certfile'],
-                server_side=True)
-    c.loop()
-    if mqtt_config['use_mqtt']:
-        mqtt.stop()
-    if http_config['use_http']: #TODO objects living in multiple threads issue at shutdown!
-        server.stop()
-    c.stop()
 
 
 if __name__=="__main__": 

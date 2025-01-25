@@ -6,6 +6,7 @@ import json
 import os
 from picframe import __version__
 
+from picframe.mqtt.interface import InterfaceMQTT
 
 class MQTTHomeAssistant(InterfaceMQTT):
     """MQTT interface of picframe.

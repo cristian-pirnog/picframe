@@ -11,91 +11,6 @@ import json
 import locale
 from picframe import geo_reverse, image_cache
 
-DEFAULT_CONFIG = {
-    'viewer': {
-        'blur_amount': 12,
-        'blur_zoom': 1.0,
-        'blur_edges': False,
-        'edge_alpha': 0.5,
-        'fps': 20.0,
-        'background': [0.2, 0.2, 0.3, 1.0],
-        'blend_type': "blend", # {"blend":0.0, "burn":1.0, "bump":2.0}
-
-        'font_file': '~/picframe_data/data/fonts/NotoSans-Regular.ttf',
-        'shader': '~/picframe_data/data/shaders/blend_new',
-        'show_text_fm': '%b %d, %Y',
-        'show_text_tm': 20.0,
-        'show_text_sz': 40,
-        'show_text': "name location",
-        'text_justify': 'L',
-        'fit': False,
-        #'auto_resize': True,
-        'kenburns': False,
-        'display_x': 0,
-        'display_y': 0,
-        'display_w': None,
-        'display_h': None,
-        'use_glx': False,                          # default=False. Set to True on linux with xserver running
-        'test_key': 'test_value',
-        'mat_images': True,
-        'mat_type': None,
-        'outer_mat_color': None,
-        'inner_mat_color': None,
-        'outer_mat_border': 75,
-        'inner_mat_border': 40,
-        'inner_mat_use_texture': False,
-        'outer_mat_use_texture': True,
-        'mat_resource_folder': '~/picframe_data/data/mat',
-        'show_clock': False,
-        'clock_justify': "R",
-        'clock_text_sz': 120,
-        'clock_format': "%I:%M",
-    },
-    'model': {
-
-        'pic_dir': '~/Pictures',
-        'no_files_img': '~/picframe_data/data/no_pictures.jpg',
-        'follow_links': False,
-        'subdirectory': '',
-        'recent_n': 3,
-        'reshuffle_num': 1,
-        'time_delay': 200.0,
-        'fade_time': 10.0,
-        'shuffle': True,
-        'sort_cols': 'fname ASC',
-        'image_attr': ['PICFRAME GPS'],                          # image attributes send by MQTT, Keys are taken from exifread library, 'PICFRAME GPS' is special to retrieve GPS lon/lat
-        'load_geoloc': True,
-        'locale': 'en_US.utf8',
-        'key_list': [['tourism','amenity','isolated_dwelling'],['suburb','village'],['city','county'],['region','state','province'],['country']],
-        'geo_key': 'this_needs_to@be_changed',  # use your email address
-        'db_file': '~/picframe_data/data/pictureframe.db3',
-        'portrait_pairs': False,
-        'deleted_pictures': '~/DeletedPictures',
-        'log_level': 'WARNING',
-        'log_file': '',
-        'use_kbd': False,
-    },
-    'mqtt': {
-        'use_mqtt': False,                          # Set tue true, to enable mqtt
-        'server': '',
-        'port': 8883,
-        'login': '',
-        'password': '',
-        'tls': '',
-        'device_id': 'picframe',                                 # unique id of device. change if there is more than one picture frame
-        'subscriber_topic_prefix': 'shellies/'
-    },
-    'http': {
-        'use_http': False,
-        'path': '~/picframe_data/html',
-        'port': 9000,
-        'use_ssl': False,
-        'keyfile': "/path/to/key.pem",
-        'certfile': "/path/to/fullchain.pem"
-    }
-}
-
-
 class Pic: #TODO could this be done more elegantly with namedtuple
 
     def __init__(self, fname, last_modified, file_id, orientation=1, exif_datetime=0,
@@ -129,164 +44,129 @@ class Pic: #TODO could this be done more elegantly with namedtuple
 
 class Model:
 
-    def __init__(self, same_month_photos: bool, configfile):
-        self.__logger = logging.getLogger("model.Model")
-        self.__logger.debug('creating an instance of Model')
-        self.__config = DEFAULT_CONFIG
-        configfile = os.path.expanduser(configfile)
-        self.__logger.info("Open config file: %s:",configfile)
-        with open(configfile, 'r') as stream:
-            try:
-                conf = yaml.safe_load(stream)
-                for section in ['viewer', 'model', 'mqtt', 'http']:
-                    self.__config[section] = {**DEFAULT_CONFIG[section], **conf[section]}
+    def __init__(self, config: dict):
+        self._logger = logging.getLogger("model.Model")
+        self._logger.debug('creating an instance of Model')
+        self._config = config
 
-                self.__logger.debug('config data = %s', self.__config)
-            except yaml.YAMLError as exc:
-                self.__logger.error("Can't parse yaml config file: %s: %s", configfile, exc)
+        self._file_list = [] # this is now a list of tuples i.e (file_id1,) or (file_id1, file_id2)
+        self._number_of_files = 0 # this is shortcut for len(__file_list)
+        self.same_month_photos = False
+        self.same_day_photos = False
+        self._reload_files = True
+        self._file_index = 0 # pointer to next position in __file_list
+        self._current_pics = (None, None) # this hold a tuple of (pic, None) or two pic objects if portrait pairs
+        self._num_run_through = 0
 
-        log_config_file = Path(configfile).parent / 'log_config.json'
-        with log_config_file.open('r') as fr:
-            logging.config.dictConfig(json.load(fr))
-        print('Completed logger initialization')
-        # root_logger = logging.getLogger()
-        # root_logger.setLevel(self.get_model_config()['log_level']) # set root logger
-        # log_file = self.get_model_config()['log_file']
-        # if log_file != '':
-        #     filehandler = logging.FileHandler(log_file) #NB default appending so needs monitoring
-        #     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        #     filehandler.setFormatter(formatter)
-        #     for hdlr in root_logger.handlers[:]:  # remove the existing file handlers
-        #         if isinstance(hdlr, logging.FileHandler):
-        #             root_logger.removeHandler(hdlr)
-        #     root_logger.addHandler(filehandler)      # set the new handler
-
-        self.__file_list = [] # this is now a list of tuples i.e (file_id1,) or (file_id1, file_id2)
-        self.__number_of_files = 0 # this is shortcut for len(__file_list)
-        self.same_month_photos = same_month_photos
-        self.__reload_files = True
-        self.__file_index = 0 # pointer to next position in __file_list
-        self.__current_pics = (None, None) # this hold a tuple of (pic, None) or two pic objects if portrait pairs
-        self.__num_run_through = 0
-
-        model_config = self.get_model_config() # alias for brevity as used several times below
         try:
-            locale.setlocale(locale.LC_TIME, model_config['locale'])
+            locale.setlocale(locale.LC_TIME, self._config['locale'])
         except:
-            self.__logger.error("error trying to set locale to {}".format(model_config['locale']))
-        self.__pic_dir = os.path.expanduser(model_config['pic_dir'])
-        self.__subdirectory = os.path.expanduser(model_config['subdirectory'])
-        self.__load_geoloc = model_config['load_geoloc']
-        self.__geo_reverse = geo_reverse.GeoReverse(model_config['geo_key'], key_list=self.get_model_config()['key_list'])
-        self.__image_cache = image_cache.ImageCache(self.__pic_dir,
-                                                    model_config['follow_links'],
-                                                    os.path.expanduser(model_config['db_file']),
-                                                    self.__geo_reverse,
-                                                    model_config['portrait_pairs'],
-                                                    continuous_update=model_config["update_cache"])
-        self.__deleted_pictures = model_config['deleted_pictures']
-        self.__no_files_img = os.path.expanduser(model_config['no_files_img'])
-        self.__sort_cols = model_config['sort_cols']
-        self.__col_names = None
-        self.__where_clauses = {} # these will be modified by controller
-        self.__logger.info("Completed initialization")
-
-    def get_viewer_config(self):
-        print("\tReturning viewer config:")
-        print({**self.__config['viewer'], "show_month": self.same_month_photos})
-        return {**self.__config['viewer'], "show_month": self.same_month_photos}
-
-    def get_model_config(self):
-        return self.__config['model']
+            self._logger.error("error trying to set locale to {}".format(self._config['locale']))
+        self._pic_dir = os.path.expanduser(self._config['pic_dir'])
+        self._subdirectory = os.path.expanduser(self._config['subdirectory'])
+        self._load_geoloc = self._config['load_geoloc']
+        self._geo_reverse = geo_reverse.GeoReverse(self._config['geo_key'], key_list=self._config()['key_list'])
+        self._image_cache = image_cache.ImageCache(self._pic_dir,
+                                                    self._config['follow_links'],
+                                                    os.path.expanduser(self._config['db_file']),
+                                                    self._geo_reverse,
+                                                    self._config['portrait_pairs'],
+                                                    continuous_update=self._config["update_cache"])
+        self._deleted_pictures = self._config['deleted_pictures']
+        self._no_files_img = os.path.expanduser(self._config['no_files_img'])
+        self._sort_cols = self._config['sort_cols']
+        self._col_names = None
+        self._where_clauses = {} # these will be modified by controller
+        self._logger.info("Completed initialization")
 
     def get_mqtt_config(self):
-        return self.__config['mqtt']
+        return self._config['mqtt']
 
     def get_http_config(self):
-        return self.__config['http']
+        return self._config['http']
 
     @property
     def fade_time(self):
-        return self.__config['model']['fade_time']
+        return self._config['model']['fade_time']
 
     @fade_time.setter
     def fade_time(self, time):
-        self.__config['model']['fade_time'] = time
+        self._config['model']['fade_time'] = time
 
     @property
     def time_delay(self):
-        return self.__config['model']['time_delay']
+        return self._config['model']['time_delay']
 
     @time_delay.setter
     def time_delay(self, time):
-        self.__config['model']['time_delay'] = time
+        self._config['model']['time_delay'] = time
 
     @property
     def subdirectory(self):
-        return self.__subdirectory
+        return self._subdirectory
 
     @subdirectory.setter
     def subdirectory(self, dir):
-        _, root = os.path.split(self.__pic_dir)
+        _, root = os.path.split(self._pic_dir)
         actual_dir = root
         if self.subdirectory != '':
             actual_dir = self.subdirectory
         if actual_dir != dir:
             if root == dir:
-                self.__subdirectory = ''
+                self._subdirectory = ''
             else:
-                self.__subdirectory = dir
-            self.__logger.info("Set subdirectory to: %s", self.__subdirectory)
-            self.__reload_files = True
+                self._subdirectory = dir
+            self._logger.info("Set subdirectory to: %s", self._subdirectory)
+            self._reload_files = True
 
     @property
     def shuffle(self):
-        return self.__config['model']['shuffle']
+        return self._config['model']['shuffle']
 
     @shuffle.setter
     def shuffle(self, val:bool):
-        self.__config['model']['shuffle'] = val #TODO should this be altered in config?
+        self._config['model']['shuffle'] = val #TODO should this be altered in config?
         #if val == True:
-        #    self.__shuffle_files()
+        #    self._shuffle_files()
         #else:
-        #    self.__sort_files()
-        self.__reload_files = True
+        #    self._sort_files()
+        self._reload_files = True
 
     def set_where_clause(self, key, value=None):
         # value must be a string for later join()
         if (value is None or len(value) == 0):
-            if key in self.__where_clauses:
-                self.__where_clauses.pop(key)
+            if key in self._where_clauses:
+                self._where_clauses.pop(key)
             return
-        self.__where_clauses[key] = value
+        self._where_clauses[key] = value
 
     def get_where_clauses(self):
-        return self.__where_clauses
+        return self._where_clauses
 
     def pause_looping(self, val):
-        self.__image_cache.pause_looping(val)
+        self._image_cache.pause_looping(val)
 
     def purge_files(self):
-        self.__image_cache.purge_files()
+        self._image_cache.purge_files()
 
     def get_directory_list(self):
-        _, root = os.path.split(self.__pic_dir)
+        _, root = os.path.split(self._pic_dir)
         actual_dir = root
         if self.subdirectory != '':
             actual_dir = self.subdirectory
-        follow_links = self.get_model_config()['follow_links']
-        subdir_list = next(os.walk(self.__pic_dir, followlinks=follow_links))[1]
+        follow_links = self.get_self._config()['follow_links']
+        subdir_list = next(os.walk(self._pic_dir, followlinks=follow_links))[1]
         subdir_list[:] = [d for d in subdir_list if not d[0] == '.']
         if not follow_links:
-            subdir_list[:] = [d for d in subdir_list if not os.path.islink(self.__pic_dir + '/' + d)]
+            subdir_list[:] = [d for d in subdir_list if not os.path.islink(self._pic_dir + '/' + d)]
         subdir_list.insert(0,root)
         return actual_dir, subdir_list
 
     def force_reload(self):
-        self.__reload_files = True
+        self._reload_files = True
 
     def set_next_file_to_previous_file(self):
-        self.__file_index = (self.__file_index - 2) % self.__number_of_files # TODO deleting last image results in ZeroDivisionError
+        self._file_index = (self._file_index - 2) % self._number_of_files # TODO deleting last image results in ZeroDivisionError
 
     def get_next_file(self):
         missing_images = 0
@@ -297,38 +177,38 @@ class Model:
             pic2 = None
 
             # Reload the playlist if requested
-            if self.__reload_files:
-                self.__image_cache.start()
+            if self._reload_files:
+                self._image_cache.start()
                 for _ in range(5): # give image_cache chance on first load if a large directory
-                    self.__get_files()
+                    self._get_files()
                     missing_images = 0
-                    if self.__number_of_files > 0:
+                    if self._number_of_files > 0:
                         break
                     time.sleep(0.5)
 
             # If we don't have any files to show, prepare the "no images" image
             # Also, set the reload_files flag so we'll check for new files on the next pass...
-            if self.__number_of_files == 0 or missing_images >= self.__number_of_files:
-                pic1 = Pic(self.__no_files_img, 0, 0)
-                self.__reload_files = True
+            if self._number_of_files == 0 or missing_images >= self._number_of_files:
+                pic1 = Pic(self._no_files_img, 0, 0)
+                self._reload_files = True
                 break
 
             # If we've displayed all images...
             #   If it's time to shuffle, set a flag to do so
             #   Loop back, which will reload and shuffle if necessary
-            if self.__file_index == self.__number_of_files:
-                self.__num_run_through += 1
-                if self.shuffle and self.__num_run_through >= self.get_model_config()['reshuffle_num']:
-                    self.__reload_files = True
-                self.__file_index = 0
+            if self._file_index == self._number_of_files:
+                self._num_run_through += 1
+                if self.shuffle and self._num_run_through >= self.get_self._config()['reshuffle_num']:
+                    self._reload_files = True
+                self._file_index = 0
                 continue
 
             # Load the current image set
-            file_ids = self.__file_list[self.__file_index]
-            pic_row = self.__image_cache.get_file_info(file_ids[0])
+            file_ids = self._file_list[self._file_index]
+            pic_row = self._image_cache.get_file_info(file_ids[0])
             pic1 = Pic(**pic_row) if pic_row is not None else None
             if len(file_ids) == 2:
-                pic_row = self.__image_cache.get_file_info(file_ids[1])
+                pic_row = self._image_cache.get_file_info(file_ids[1])
                 pic2 = Pic(**pic_row) if pic_row is not None else None
 
             # Verify the images in the selected image set actually exist on disk
@@ -339,7 +219,7 @@ class Model:
             if (not pic1 and pic2): pic1, pic2 = pic2, pic1
 
             # Increment the image index for next time
-            self.__file_index += 1
+            self._file_index += 1
 
             # If pic1 is valid here, everything is OK. Break out of the loop and return the set
             if pic1:
@@ -349,59 +229,69 @@ class Model:
             # Track the number of times we've looped back so we can abort if we don't have *any* images to display
             missing_images += 1
 
-        self.__current_pics = (pic1, pic2)
-        return self.__current_pics
+        self._current_pics = (pic1, pic2)
+        return self._current_pics
 
     def get_number_of_files(self):
-        #return self.__number_of_files
-        #return sum(1 for pics in self.__file_list for pic in pics if pic is not None)
+        #return self._number_of_files
+        #return sum(1 for pics in self._file_list for pic in pics if pic is not None)
         # or
         return sum(
                     sum(1 for pic in pics if pic is not None)
-                        for pics in self.__file_list
+                        for pics in self._file_list
                 )
 
     def get_current_pics(self):
-        return self.__current_pics
+        return self._current_pics
 
     def delete_file(self):
         # delete the current pic. If it's a portrait pair then only the left one will be deleted
-        pic = self.__current_pics[0]
+        pic = self._current_pics[0]
         if pic is None:
             return None
         f_to_delete = pic.fname
-        move_to_dir = os.path.expanduser(self.__deleted_pictures)
+        move_to_dir = os.path.expanduser(self._deleted_pictures)
         # TODO should these os system calls be inside a try block in case the file has been deleted after it started to show?
         if not os.path.exists(move_to_dir):
           os.system("mkdir {}".format(move_to_dir)) # problems with ownership using python func
         os.system("mv '{}' '{}'".format(f_to_delete, move_to_dir)) # and with SMB drives
         # find and delete record from __file_list
-        for i, file_rec in enumerate(self.__file_list):
+        for i, file_rec in enumerate(self._file_list):
             if file_rec[0] == pic.file_id: # database id TODO check that db tidies itself up
-                self.__file_list.pop(i)
-                self.__number_of_files -= 1
+                self._file_list.pop(i)
+                self._number_of_files -= 1
                 break
 
     def get_picture_dir(self):
         if self.subdirectory != "":
-            picture_dir = os.path.join(self.__pic_dir, self.subdirectory) # TODO catch, if subdirecotry does not exist
+            picture_dir = os.path.join(self._pic_dir, self.subdirectory) # TODO catch, if subdirecotry does not exist
         else:
-            picture_dir = self.__pic_dir
+            picture_dir = self._pic_dir
 
         return picture_dir
 
     def __get_files(self):
+
+        # On the first week of the month, use files from the same month
+        if self.same_day_photos:
+            file_selector = SameDayFileSelector(self)
+        if self.same_month_photos or datetime.now().day <= 7:
+            file_selector = SameMonthFileSelector(self)
+        else:
+            file_selector = DefaultFileSelector(self)
+
+
         file_selector = FileSelectorFactory.get(self)
-        self.__logger.info(f"Using file selector: {file_selector.__class__.__name__}")
+        self._logger.info(f"Using file selector: {file_selector.__class__.__name__}")
 
         where_clause = file_selector.get_where_clause()
         sort_clause = file_selector.get_sort_clause()
         
-        self.__file_list = self.__image_cache.query_cache(where_clause, sort_clause)
-        self.__number_of_files = len(self.__file_list)
-        self.__file_index = 0
-        self.__num_run_through = 0
-        self.__reload_files = False
+        self._file_list = self._image_cache.query_cache(where_clause, sort_clause)
+        self._number_of_files = len(self._file_list)
+        self._file_index = 0
+        self._num_run_through = 0
+        self._reload_files = False
 
 
 class FileSelector(abc.ABC):
@@ -417,7 +307,7 @@ class FileSelector(abc.ABC):
 
     def get_sort_clause(self) -> str:
         sort_list = []
-        recent_n = self.model.get_model_config()["recent_n"]
+        recent_n = self.model.get_self._config()["recent_n"]
         if recent_n > 0:
             sort_list.append("last_modified > {:.0f}".format(time.time() - 3600 * 24 * recent_n))
 
@@ -473,10 +363,18 @@ class SameMonthFileSelector(FileSelector):
     def _get_sort_list(self) -> str:
         return [""]
 
-class FileSelectorFactory:
-    def get(model: Model) -> FileSelector:
-        # On the first week of the month, use files from the same month
-        if model.same_month_photos or datetime.now().day < 8:
-            return SameMonthFileSelector(model)
-        
-        return DefaultFileSelector(model)
+class SameDayFileSelector(FileSelector):
+    def __init__(self, model: Model) -> None:
+        super().__init__(model)
+        now = datetime.now()
+        self.month = now.month
+        self.day = now.day
+
+    def _get_where_list(self) -> str:
+        return [f"STRFTIME('%m%d', DATETIME(exif_datetime, 'unixepoch')) = '{self.month:02}{self.day:02}'"]
+
+    
+    def _get_sort_list(self) -> str:
+        return [""]
+
+
