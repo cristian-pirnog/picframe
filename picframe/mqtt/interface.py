@@ -43,7 +43,7 @@ class InterfaceMQTT:
 
     def __del__(self):
         self.stop()
-        self._logger.info(f'Deleting the {self._class__.__name__} instance')
+        self._logger.info(f'Deleting the {self.__class__.__name__} instance')
 
     def start(self):
         try:

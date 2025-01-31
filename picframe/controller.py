@@ -74,12 +74,12 @@ class Controller:
         self._tags_filter = ''
         self._shutdown_complete = False
         
-        self._mqtt = mqtt_factory.create(config.get(ConfigSection.MQTT), self)
+        self._mqtt = mqtt_factory.create(self, config.get(ConfigSection.MQTT))
         self._mqtt.start()
 
         self._http = self._create_http(config.get(ConfigSection.HTTP))
 
-        if config['use_kbd']:
+        if config.get(ConfigSection.CONTROLLER)['use_kbd']:
             interface_kbd.InterfaceKbd(self) # TODO make kbd failsafe
 
     def __del__(self):

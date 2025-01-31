@@ -15,7 +15,7 @@
     "file": {
       "class": "logging.handlers.RotatingFileHandler",
       "formatter": "default",
-      "filename": "/home/pi/picframe.log",
+      "filename": "/home/cristian/picframe.log",
       "maxBytes": 10000000,
       "backupCount": 2,
       "level": "DEBUG"

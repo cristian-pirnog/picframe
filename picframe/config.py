@@ -3,6 +3,7 @@ import logging
 import logging.config
 from pathlib import Path
 import yaml
+import json
 
 DEFAULT_CONFIG = {
     'viewer': {
@@ -66,6 +67,8 @@ DEFAULT_CONFIG = {
         'deleted_pictures': '~/DeletedPictures',
         'log_level': 'WARNING',
         'log_file': '',
+    },
+    "controller": {
         'use_kbd': False,
     },
     'mqtt': {
@@ -95,6 +98,7 @@ class ConfigSection(Enum):
     VIEWER = "viewer"
     MQTT = "mqtt"
     HTTP = "http"
+    CONTROLLER = "controller"
 
 
 class Config:
@@ -103,6 +107,7 @@ class Config:
         self._logger.debug('creating an instance of Model')
         self._config = {}
 
+        configfile = Path(configfile)
         self._logger.info(f"Open config file: {configfile}")
         with configfile.open('r') as fr:
             try:
@@ -115,7 +120,7 @@ class Config:
                 self._logger.error(f"Can't parse yaml config file: {configfile}, {exc}")
                 raise
         
-        log_config_file = Path(configfile).parent / 'log_config.json'
+        log_config_file = configfile.parent / 'log_config.json'
         with log_config_file.open('r') as fr:
             logging.config.dictConfig(json.load(fr))
         print('Completed logger initialization')

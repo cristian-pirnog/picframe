@@ -85,7 +85,7 @@ def check_packages (packages):
 def main():
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     logger = logging.getLogger(__file__)
-    logger.info('starting %s', sys.argv)
+    logger.info('\n\nstarting %s', sys.argv)
 
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()

@@ -65,7 +65,7 @@ class Model:
         self._pic_dir = os.path.expanduser(self._config['pic_dir'])
         self._subdirectory = os.path.expanduser(self._config['subdirectory'])
         self._load_geoloc = self._config['load_geoloc']
-        self._geo_reverse = geo_reverse.GeoReverse(self._config['geo_key'], key_list=self._config()['key_list'])
+        self._geo_reverse = geo_reverse.GeoReverse(self._config['geo_key'], key_list=self._config['key_list'])
         self._image_cache = image_cache.ImageCache(self._pic_dir,
                                                     self._config['follow_links'],
                                                     os.path.expanduser(self._config['db_file']),
@@ -87,19 +87,19 @@ class Model:
 
     @property
     def fade_time(self):
-        return self._config['model']['fade_time']
+        return self._config['fade_time']
 
     @fade_time.setter
     def fade_time(self, time):
-        self._config['model']['fade_time'] = time
+        self._config['fade_time'] = time
 
     @property
     def time_delay(self):
-        return self._config['model']['time_delay']
+        return self._config['time_delay']
 
     @time_delay.setter
     def time_delay(self, time):
-        self._config['model']['time_delay'] = time
+        self._config['time_delay'] = time
 
     @property
     def subdirectory(self):
@@ -121,11 +121,11 @@ class Model:
 
     @property
     def shuffle(self):
-        return self._config['model']['shuffle']
+        return self._config['shuffle']
 
     @shuffle.setter
     def shuffle(self, val:bool):
-        self._config['model']['shuffle'] = val #TODO should this be altered in config?
+        self._config['shuffle'] = val #TODO should this be altered in config?
         #if val == True:
         #    self._shuffle_files()
         #else:
@@ -154,7 +154,7 @@ class Model:
         actual_dir = root
         if self.subdirectory != '':
             actual_dir = self.subdirectory
-        follow_links = self.get_self._config()['follow_links']
+        follow_links = self._config['follow_links']
         subdir_list = next(os.walk(self._pic_dir, followlinks=follow_links))[1]
         subdir_list[:] = [d for d in subdir_list if not d[0] == '.']
         if not follow_links:
@@ -198,7 +198,7 @@ class Model:
             #   Loop back, which will reload and shuffle if necessary
             if self._file_index == self._number_of_files:
                 self._num_run_through += 1
-                if self.shuffle and self._num_run_through >= self.get_self._config()['reshuffle_num']:
+                if self.shuffle and self._num_run_through >= self._config['reshuffle_num']:
                     self._reload_files = True
                 self._file_index = 0
                 continue
@@ -270,18 +270,24 @@ class Model:
 
         return picture_dir
 
-    def __get_files(self):
+    def _get_files(self):
+        config = {
+            "picture_dir": self._config["picture_dir"],
+            "recent_n": self._config["recent_n"],
+            "shuffle": self._config["shuffle"],
+            "sort_cols": self._config["sort_cols"],
+            "where_clauses": self._where_clauses,
+            "col_names": self._image_cache.get_column_names()
+        }
 
         # On the first week of the month, use files from the same month
         if self.same_day_photos:
-            file_selector = SameDayFileSelector(self)
+            file_selector = SameDayFileSelector(config)
         if self.same_month_photos or datetime.now().day <= 7:
-            file_selector = SameMonthFileSelector(self)
+            file_selector = SameMonthFileSelector(config)
         else:
-            file_selector = DefaultFileSelector(self)
+            file_selector = DefaultFileSelector(config)
 
-
-        file_selector = FileSelectorFactory.get(self)
         self._logger.info(f"Using file selector: {file_selector.__class__.__name__}")
 
         where_clause = file_selector.get_where_clause()
@@ -295,23 +301,23 @@ class Model:
 
 
 class FileSelector(abc.ABC):
-    def __init__(self, model: Model) -> None:
-        self.model = model
+    def __init__(self, config: dict) -> None:
+        self._config = config
         super().__init__()
 
     def get_where_clause(self) -> str:
-        where_list = [f"fname LIKE '{self.model.get_picture_dir()}/%'"]
+        where_list = [f"fname LIKE '{self._config["picture_dir"]}/%'"]
         where_list.extend(self._get_where_list())
         return " AND ".join(where_list) if len(where_list) > 0 else "1"
 
 
     def get_sort_clause(self) -> str:
         sort_list = []
-        recent_n = self.model.get_self._config()["recent_n"]
+        recent_n = self._config["recent_n"]
         if recent_n > 0:
             sort_list.append("last_modified > {:.0f}".format(time.time() - 3600 * 24 * recent_n))
 
-        if self.model.shuffle:
+        if self._config["shuffle"]:
             sort_list.append("RANDOM()")
         else:
             sort_list.extend(self._get_sort_list())
@@ -329,22 +335,17 @@ class FileSelector(abc.ABC):
 
 
 class DefaultFileSelector(FileSelector):
-    def __init__(self, model: Model) -> None:
-        super().__init__(model)
-        self.model = model
 
     def _get_where_list(self) -> str:
-        return self.model.get_where_clauses()
-
+        return self._config["where_clauses"]
 
     def _get_sort_list(self) -> str:
         sort_list = []
 
-        if self.model.__col_names is None:
-            self.model.__col_names = self.model.__image_cache.get_column_names() # do this once
-        for col in self.model.__sort_cols.split(","):
+
+        for col in self._config["sort_cols"].split(","):
             colsplit = col.split()
-            if colsplit[0] in self.model.__col_names and (len(colsplit) == 1 or colsplit[1].upper() in ("ASC", "DESC")):
+            if colsplit[0] in self._config["col_names"] and (len(colsplit) == 1 or colsplit[1].upper() in ("ASC", "DESC")):
                 sort_list.append(col)
         sort_list.append("fname ASC") # always finally sort on this in case nothing else to sort on or sort_cols is ""
         
