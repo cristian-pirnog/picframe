@@ -6,3 +6,4 @@ paho-mqtt
 pi3d
 pyyaml
 urllib3
+setuptools
